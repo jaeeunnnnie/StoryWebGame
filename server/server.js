@@ -7,7 +7,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.get("/", (req, res) => res.send("OK"));
+const path = require("path");
+
+
+app.use(express.static(path.join(__dirname, "..", "client")));
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "client", "index.html"));
+});
+
 
 
 //서버가 기억하는 방 목록
