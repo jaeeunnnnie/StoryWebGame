@@ -6,7 +6,7 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-
+// ====================================================================
 // Socket.io 서버 생성
 const io = new Server(server, {
   cors: {
@@ -21,7 +21,7 @@ app.use(express.static(path.join(__dirname, "..", "client")));
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "client", "index.html"));
 });
-
+// ====================================================================
 
 //In-memory DB (서버가 기억하는 방/플레이어 상태)
 // =========================
@@ -259,6 +259,8 @@ function startRound(roomId) {
 
   emitRoomState(room.roomId);
 }
+
+// 결과 정리
 
 function buildResultPayload(room) {
   const order = room.game.turnOrder;
