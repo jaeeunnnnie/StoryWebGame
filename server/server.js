@@ -165,7 +165,6 @@ function allPromptsSubmitted(room) {
 // 한 번이라도 사용된 제시어는 다시 나오지 않음
 // ====================================================================
 // [수정됨] 제시어를 모아서 셔플 후 각 플레이어에게 분배
-// [수정됨] 제시어를 모아서 셔플 후 각 플레이어에게 분배
 function assignPrompts(room) {
   const ids = Object.keys(room.players);
   const per = 3;
