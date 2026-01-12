@@ -130,6 +130,7 @@ function resetForNewGame(room) {
   room.game.storyChains = {};
   room.game.chainForPlayer = {};
   room.game.submittedStory = {};
+  room.game.usedPromptSet = new Set(); // 게임 전체에서 사용된 제시어 추적
 
   // 플레이어 상태 초기화
   for (const sid of ids) {
@@ -160,67 +161,133 @@ function allPromptsSubmitted(room) {
 }
 
 // 제시어를 모아서 셔플 후 각 플레이어에게 분배
+// 라운드마다 호출되어 새로운 제시어를 뽑음
+// 한 번이라도 사용된 제시어는 다시 나오지 않음
+// ====================================================================
+// [수정됨] 제시어를 모아서 셔플 후 각 플레이어에게 분배
 function assignPrompts(room) {
   const ids = Object.keys(room.players);
-  const userPrompts = [];
-  
-  // 사용자가 입력한 제시어 수집 (본인 제시어도 포함하여 수집)
+  const per = 3;
+  if (ids.length === 0) return;
+
+  // 게임 전체에서 사용된 제시어 ID Set (없으면 초기화)
+  if (!room.game.usedPromptSet) {
+    room.game.usedPromptSet = new Set();
+  }
+  const usedPromptSet = room.game.usedPromptSet;
+
+  // ----- 풀 구성: 커스텀 / 기본 -----
+  // 이제 문자열(string)이 아니라 { id, text } 객체를 담습니다.
+  const customPool = [];
+  const defaultPool = [];
+
+  // 1. 커스텀 카드 수집
   for (const sid of ids) {
     const p = room.players[sid];
-    for (const s of p.prompts || []) {
-      userPrompts.push(s);
+    // 플레이어가 낸 카드 3장을 순회
+    (p.prompts || []).forEach((textRaw, index) => {
+      const text = String(textRaw ?? "").trim();
+      if (!text) return;
+
+      // 카드 고유 ID 생성 (누가 냈는지 + 몇 번째 카드인지)
+      // 예: "socketId12345_0"
+      const uniqueId = `${sid}_${index}`;
+
+      // 텍스트가 같아도 ID가 다르면 다른 카드로 취급
+      // 이미 사용된 '특정 카드'만 제외
+      if (usedPromptSet.has(uniqueId)) return;
+
+      customPool.push({ id: uniqueId, text: text, type: 'custom' });
+    });
+  }
+
+  // 2. 기본 카드 수집
+  // 기본 카드는 무한정 쓸 수 있게 할지, 한 번만 쓸지 정책에 따라 다르지만
+  // 여기서는 "기본 카드도 텍스트 기준으로 한 게임에 한 번만 등장" 하도록 유지하거나,
+  // "매 라운드 리필" 되도록 할 수 있습니다. 
+  // 기존 로직(텍스트 기준 중복 제거)을 유지하되 객체 형태로 변환합니다.
+  for (const base of DEFAULT_PROMPTS) {
+    const text = String(base ?? "").trim();
+    if (!text) continue;
+    
+    // 기본 카드는 ID를 "default_단어"로 설정 (즉, 기본 카드는 여전히 중복 텍스트 방지됨)
+    const uniqueId = `default_${text}`;
+    
+    if (usedPromptSet.has(uniqueId)) continue;
+    
+    defaultPool.push({ id: uniqueId, text: text, type: 'default' });
+  }
+
+  // 섞기
+  shuffle(customPool);
+  shuffle(defaultPool);
+
+  // 유틸: 풀에서 카드 객체 하나 뽑기
+  function drawFrom(pool) {
+    if (!pool || pool.length === 0) return null;
+    return pool.shift(); 
+  }
+
+  // 유틸: 우선순위 뽑기
+  function drawPrefer(poolA, poolB) {
+    let card = drawFrom(poolA);
+    if (card) return card;
+    return drawFrom(poolB);
+  }
+
+  // 유틸: 둘 다 합쳐서 랜덤 뽑기 (커스텀 가중치)
+  function drawFromBoth() {
+    const customCount = customPool.length;
+    const defaultCount = defaultPool.length;
+    if (customCount + defaultCount === 0) return null;
+
+    const r = Math.random();
+    if (customCount > 0 && defaultCount > 0) {
+      if (r < 0.7) return drawFrom(customPool);
+      else return drawFrom(defaultPool);
+    } else if (customCount > 0) {
+      return drawFrom(customPool);
+    } else {
+      return drawFrom(defaultPool);
     }
   }
 
-  // 기본 제시어 리스트 복사 (원본 보호)
-  const defaultPrompts = [...DEFAULT_PROMPTS];
-  
-  // 기본 제시어와 사용자 제시어 합치기
-  const allPrompts = [...userPrompts, ...defaultPrompts];
-  
-  // 전체 제시어 섞기
-  shuffle(allPrompts);
+  // 각 플레이어에게 분배
+  for (const sid of ids) {
+    const sliceObjs = []; // 객체들을 임시로 담을 배열
 
-  // ==========================================================
-  // [수정 완료] 누락되었던 변수 선언 추가
-  // ==========================================================
-  const availablePrompts = allPrompts; 
-  const usedPrompts = new Set();
-  // ==========================================================
+    // 1. 커스텀 우선
+    let c1 = drawPrefer(customPool, defaultPool);
+    if (c1) sliceObjs.push(c1);
 
-  // 플레이어에게 3개씩 분배
-  const per = 3;
-  for (let i = 0; i < ids.length; i++) {
-    const sid = ids[i];
-    const slice = [];
-    
-    // 각 플레이어에게 3개씩 할당
-    for (let j = 0; j < per; j++) {
-      // 사용 가능한 제시어가 없으면 중단
-      if (availablePrompts.length === 0) {
-        console.warn(`[assignPrompts] 사용 가능한 제시어 부족: 플레이어 ${i + 1}/${ids.length}, 할당된 제시어: ${slice.length}/${per}`);
-        break;
-      }
-      
-      // 사용 가능한 제시어 중 첫 번째 것을 선택하고 제거
-      const selectedPrompt = availablePrompts.shift();
-      slice.push(selectedPrompt);
-      usedPrompts.add(selectedPrompt);
+    // 2. 기본 우선
+    let c2 = drawPrefer(defaultPool, customPool);
+    if (c2) sliceObjs.push(c2);
+
+    // 3. 랜덤
+    let c3 = drawFromBoth();
+    if (c3) sliceObjs.push(c3);
+
+    // 실제 데이터 처리는 여기서 확정
+    const finalPrompts = [];
+    for (const card of sliceObjs) {
+      // 1) 사용된 카드 ID 기록 (재등장 방지)
+      usedPromptSet.add(card.id);
+      // 2) 플레이어에게는 텍스트만 전달
+      finalPrompts.push(card.text);
     }
-    
-    // 할당된 개수가 부족할 경우 경고
-    if (slice.length < per) {
-      console.warn(`[assignPrompts] 플레이어 ${sid}에게 제시어 ${slice.length}개만 할당됨 (필요: ${per}개)`);
+
+    // 경고 로그
+    if (finalPrompts.length < per) {
+      console.warn(
+        `[assignPrompts] 플레이어 ${sid}에게 제시어 ${finalPrompts.length}개만 할당됨`
+      );
     }
-    
-    room.game.inboxPrompts[sid] = slice;
-    room.players[sid].inboxPrompts = slice;
+
+    room.game.inboxPrompts[sid] = finalPrompts;
+    room.players[sid].inboxPrompts = finalPrompts;
   }
-  
-  // 사용된 제시어를 게임 객체에 저장 (디버깅/확인용)
-  room.game.usedPrompts = Array.from(usedPrompts);
 }
-
 // ====================================================================
 // 스토리 체인 계산 로직
 
@@ -257,6 +324,9 @@ function startRound(roomId) {
   if (!room) return;
   if (room.phase !== "story") return;
   if (!room.game) return;
+
+  // 라운드 시작 시마다 새로운 제시어 뽑기
+  assignPrompts(room);
 
   const order = room.game.turnOrder;
   const round = room.game.round;
@@ -497,7 +567,7 @@ io.on("connection", (socket) => {
       if (!allPromptsSubmitted(room)) return;
 
       // 모두 제출 완료 시 처리
-      assignPrompts(room); // 여기서 에러가 났었음 (수정됨)
+      // assignPrompts는 startRound에서 라운드마다 호출됨
       initStoryChains(room);
 
       room.phase = "story";
