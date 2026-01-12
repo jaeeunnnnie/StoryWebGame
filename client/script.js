@@ -80,8 +80,7 @@ function renderPromptChips(container, items) {
 
 function renderStorySoFar(entries, round) {
   if (!storySoFar) return;
-
-  // 1라운드면 아예 숨김
+  
   if (round === 0) {
     storySoFar.innerHTML = "";
     storySoFar.classList.add("hidden");
@@ -123,7 +122,7 @@ function renderFinalResults(payload) {
 
     const body = document.createElement("div");
     body.innerHTML = (chain.entries || [])
-      .map((e, idx) => `<div style="margin-bottom:8px;"><b>${idx + 1}.</b> ${e.text}</div>`)
+      .map((e, idx) => `<div style="margin-bottom:8px;">${e.text}</div>`)
       .join("");
     wrap.appendChild(body);
 
@@ -213,7 +212,7 @@ socket.on("story:round", (payload) => {
     }
   } else {
     if (storySoFar) storySoFar.classList.remove("hidden");
-    renderStorySoFar(payload.chainEntries || []);
+    renderStorySoFar(payload.chainEntries || [], currentRound);
   }
 
   if (inputStoryText) inputStoryText.value = "";
