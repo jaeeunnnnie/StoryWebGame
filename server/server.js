@@ -287,7 +287,7 @@ function startRound(roomId) {
       chainId,
       chainOwnerId: chain?.ownerId || chainId,
       chainEntries,
-      inboxPrompts: room.game.inboxPrompts[sid] || [],
+      inboxPrompts: room.game.round === 0 ? [] : (room.game.inboxPrompts[sid] || []),
     });
 
     // player 제출 상태 초기화

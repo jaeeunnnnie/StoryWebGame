@@ -78,17 +78,25 @@ function renderPromptChips(container, items) {
   }
 }
 
-function renderStorySoFar(entries) {
+function renderStorySoFar(entries, round) {
   if (!storySoFar) return;
+
+  // 1라운드면 아예 숨김
+  if (round === 0) {
+    storySoFar.innerHTML = "";
+    storySoFar.classList.add("hidden");
+    return;
+  }
+
+  storySoFar.classList.remove("hidden");
+
   if (!entries || entries.length === 0) {
     storySoFar.textContent = "아직 아무도 작성하지 않았어.";
     return;
   }
+
   storySoFar.innerHTML = entries
-    .map((e, idx) => {
-      const safe = String(e.text || "");
-      return `<div style="margin-bottom:8px;">${safe}</div>`;
-    })
+    .map((e) => `<div style="margin-bottom:8px;">${String(e.text || "")}</div>`)
     .join("");
 }
 
@@ -190,12 +198,23 @@ socket.on("game:aborted", ({ reason }) => {
 
 socket.on("story:round", (payload) => {
   currentRoundPayload = payload;
+  const currentRound = payload.round ?? 0;
 
-  if (displayRound) displayRound.textContent = String((payload.round ?? 0) + 1);
+  if (displayRound) displayRound.textContent = String(currentRound + 1);
   if (displayTotalRounds) displayTotalRounds.textContent = String(payload.totalRounds ?? 0);
 
   renderPromptChips(myInboxPrompts, payload.inboxPrompts || []);
-  renderStorySoFar(payload.chainEntries || []);
+
+  // 1라운드면 "지금까지 이야기" 영역 숨기기
+  if (currentRound === 0) {
+    if (storySoFar) {
+      storySoFar.innerHTML = "";
+      storySoFar.classList.add("hidden"); // CSS에 hidden이 display:none 이면 OK
+    }
+  } else {
+    if (storySoFar) storySoFar.classList.remove("hidden");
+    renderStorySoFar(payload.chainEntries || []);
+  }
 
   if (inputStoryText) inputStoryText.value = "";
   if (btnSubmitStory) btnSubmitStory.disabled = false;
