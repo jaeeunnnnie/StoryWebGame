@@ -140,7 +140,7 @@ function resetForNewGame(room) {
   const ids = Object.keys(room.players);
   room.game.round = 0;
   room.game.turnOrder = ids.slice(); // 플레이어 순서 고정
-  room.game.totalRounds = Math.max(1, ids.length - 1);
+  room.game.totalRounds = Math.max(1, ids.length);
 
   room.game.promptPool = {};
   room.game.inboxPrompts = {};
@@ -157,6 +157,7 @@ function resetForNewGame(room) {
   }
 }
 
+// ====================================================================
 // 제시어 로직
 
 // 기본 제공 제시어 리스트
@@ -237,11 +238,11 @@ function assignPrompts(room) {
   // 전체 제시어 섞기
   shuffle(allPrompts);
 
-  // 플레이어에게 4개씩 분배
-  const per = 4;
-  const usedPrompts = new Set(); // 사용된 제시어 추적 (한 번 나온 제시어는 다시 나오지 않음)
-  let availablePrompts = [...allPrompts]; // 사용 가능한 제시어 리스트
+
   
+
+  // 플레이어에게 3개씩 분배(플레이어 수*3만큼 사용)
+  const per = 3;
   for (let i = 0; i < ids.length; i++) {
     const sid = ids[i];
     const slice = [];
@@ -273,6 +274,7 @@ function assignPrompts(room) {
   room.game.usedPrompts = Array.from(usedPrompts);
 }
 
+// ====================================================================
 // 스토리 체인 계산 로직
 
 // 각 플레이어의 스토리 체인 초기화
@@ -321,11 +323,15 @@ function startRound(roomId) {
     room.game.chainForPlayer[sid] = chainId;
 
     const chain = room.game.storyChains[chainId];
-    const chainEntries = (chain?.entries || []).map((e) => ({
-      round: e.round,
-      writerId: e.writerId,
-      text: e.text,
-    }));
+    let chainEntries = [];
+    if (chain?.entries && chain.entries.length > 0) {
+      const last = chain.entries[chain.entries.length - 1];
+      chainEntries = [{
+        round: last.round,
+        writerId: last.writerId,
+        text: last.text,
+      }];
+    }
 
     io.to(sid).emit("story:round", {
       roomId: room.roomId,
@@ -536,7 +542,7 @@ io.on("connection", (socket) => {
       const arr = Array.isArray(prompts) ? prompts : [];
       const cleaned = arr.map((x) => String(x ?? "").trim()).filter(Boolean);
 
-      if (cleaned.length !== 4) return ack?.({ ok: false, error: "NEED_4_PROMPTS" });
+      if (cleaned.length !== 3) return ack?.({ ok: false, error: "NEED_3_PROMPTS" });
 
       p.prompts = cleaned;
       p.submitted.prompts = true;

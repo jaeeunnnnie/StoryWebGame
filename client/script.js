@@ -87,7 +87,7 @@ function renderStorySoFar(entries) {
   storySoFar.innerHTML = entries
     .map((e, idx) => {
       const safe = String(e.text || "");
-      return `<div style="margin-bottom:8px;"><b>${idx + 1}.</b> ${safe}</div>`;
+      return `<div style="margin-bottom:8px;">${safe}</div>`;
     })
     .join("");
 }
@@ -266,7 +266,7 @@ btnSubmitPrompts?.addEventListener("click", () => {
   const inputs = Array.from(document.querySelectorAll(".input-prompt"));
   const prompts = inputs.map((el) => String(el.value || "").trim()).filter(Boolean);
 
-  if (prompts.length !== 4) return alertError("제시어 4개를 모두 입력해줘!");
+  if (prompts.length !== 3) return alertError("제시어 3개를 모두 입력해줘!");
 
   btnSubmitPrompts.disabled = true;
   if (waitMsg) waitMsg.classList.remove("hidden");
