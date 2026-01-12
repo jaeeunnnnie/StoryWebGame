@@ -6,6 +6,7 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
+
 // ====================================================================
 // Socket.io 서버 생성
 const io = new Server(server, {
@@ -21,23 +22,10 @@ app.use(express.static(path.join(__dirname, "..", "client")));
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "client", "index.html"));
 });
+
 // ====================================================================
-
-//In-memory DB (서버가 기억하는 방/플레이어 상태)
-// =========================
-// In-memory DB
-// rooms[roomId] = {
-//   roomId,
-//   hostId,
-//   phase: "lobby" | "prompt" | "waiting",
-//   createdAt,
-//   players: {
-//     [socketId]: { id, name, joinedAt }
-//   }
-// }
-// =========================
+// In-memory DB (서버가 기억하는 방/플레이어 상태)
 const rooms = {};
-
 
 // 5자리 방 번호 생성 (중복 방지)
 function createRoomId() {
@@ -61,17 +49,12 @@ function getRoom(roomId) {
   return r || null;
 }
 
-function getPlayers(room) {
-  return Object.values(room.players);
-}
-
-
 // 프론트에 내려줄 방 상태 객체 생성
 function getRoomState(roomId) {
   const room = rooms[roomId];
   if (!room) return null;
 
-   // 플레이어 목록 
+  // 플레이어 목록 
   const playersArr = Object.values(room.players).map((p) => ({
     id: p.id,
     name: p.name,
@@ -162,51 +145,11 @@ function resetForNewGame(room) {
 
 // 기본 제공 제시어 리스트
 const DEFAULT_PROMPTS = [
-  "고무장갑",
-  "편의점",
-  "충전기",
-  "엘리베이터",
-  "수첩",
-  "물컵",
-  "비밀번호",
-  "우산",
-  "메모지",
-  "형광펜",
-  "이어폰",
-  "종이봉투",
-  "손목시계",
-  "리모컨",
-  "서랍",
-  "단톡방",
-  "캡처",
-  "오해",
-  "폭로",
-  "비밀",
-  "뒷담화",
-  "삭제",
-  "침묵",
-  "편집",
-  "전달",
-  "왜곡",
-  "확산",
-  "눈치",
-  "부인",
-  "후폭풍",
-  "범벅",
-  "몰래스크린샷",
-  "의문의알고리즘",
-  "새벽감성",
-  "과몰입",
-  "주인없는양말",
-  "갑분싸",
-  "현타",
-  "정체불명링크",
-  "무한눈치게임",
-  "카톡읽씹",
-  "급발진",
-  "뇌정지",
-  "혼자북치고장구치기",
-  "웃참실패",
+  "고무장갑", "편의점", "충전기", "엘리베이터", "수첩", "물컵", "비밀번호", "우산", "메모지", "형광펜",
+  "이어폰", "종이봉투", "손목시계", "리모컨", "서랍", "단톡방", "캡처", "오해", "폭로", "비밀",
+  "뒷담화", "삭제", "침묵", "편집", "전달", "왜곡", "확산", "눈치", "부인", "후폭풍",
+  "범벅", "몰래스크린샷", "의문의알고리즘", "새벽감성", "과몰입", "주인없는양말", "갑분싸", "현타",
+  "정체불명링크", "무한눈치게임", "카톡읽씹", "급발진", "뇌정지", "혼자북치고장구치기", "웃참실패",
 ];
 
 // 모든 플레이어가 제시어 제출했는지 확인
@@ -238,18 +181,22 @@ function assignPrompts(room) {
   // 전체 제시어 섞기
   shuffle(allPrompts);
 
+  // ==========================================================
+  // [수정 완료] 누락되었던 변수 선언 추가
+  // ==========================================================
+  const availablePrompts = allPrompts; 
+  const usedPrompts = new Set();
+  // ==========================================================
 
-  
-
-  // 플레이어에게 3개씩 분배(플레이어 수*3만큼 사용)
+  // 플레이어에게 3개씩 분배
   const per = 3;
   for (let i = 0; i < ids.length; i++) {
     const sid = ids[i];
     const slice = [];
     
-    // 각 플레이어에게 4개씩 할당
+    // 각 플레이어에게 3개씩 할당
     for (let j = 0; j < per; j++) {
-      // 사용 가능한 제시어가 없으면 경고하고 종료
+      // 사용 가능한 제시어가 없으면 중단
       if (availablePrompts.length === 0) {
         console.warn(`[assignPrompts] 사용 가능한 제시어 부족: 플레이어 ${i + 1}/${ids.length}, 할당된 제시어: ${slice.length}/${per}`);
         break;
@@ -261,7 +208,7 @@ function assignPrompts(room) {
       usedPrompts.add(selectedPrompt);
     }
     
-    // 4개 미만으로 할당된 경우 경고
+    // 할당된 개수가 부족할 경우 경고
     if (slice.length < per) {
       console.warn(`[assignPrompts] 플레이어 ${sid}에게 제시어 ${slice.length}개만 할당됨 (필요: ${per}개)`);
     }
@@ -351,7 +298,6 @@ function startRound(roomId) {
 }
 
 // 결과 정리
-
 function buildResultPayload(room) {
   const order = room.game.turnOrder;
 
@@ -399,17 +345,17 @@ function abortGame(roomId, reason) {
 }
 
 
+// ====================================================================
 // Socket.io 연결 처리
 io.on("connection", (socket) => {
   console.log("connected:", socket.id);
 
- // 방 생성 
+  // 방 생성 
   socket.on("room:create", ({ name }, ack) => {
     try {
       const trimmed = String(name ?? "").trim();
       if (!trimmed) return ack?.({ ok: false, error: "NAME_REQUIRED" });
 
-      // 방 생성
       const roomId = createRoomId();
       rooms[roomId] = {
         roomId,
@@ -420,7 +366,6 @@ io.on("connection", (socket) => {
         game: null,
       };
 
-      // 소켓을 방에 참가시키고 플레이어 등록
       socket.join(roomId);
       rooms[roomId].players[socket.id] = {
         id: socket.id,
@@ -431,10 +376,8 @@ io.on("connection", (socket) => {
         inboxPrompts: [],
       };
 
-      // 소켓에 현재 방 ID 저장
       socket.data.roomId = roomId;
 
-      // 요청자에게 응답 + 방 전체에 상태 알림
       ack?.({ ok: true, roomId, state: getRoomState(roomId) });
       emitRoomState(roomId);
     } catch (e) {
@@ -443,7 +386,7 @@ io.on("connection", (socket) => {
     }
   });
 
-// 방 참가  
+  // 방 참가 
   socket.on("room:join", ({ roomId, name }, ack) => {
     try {
       const rid = String(roomId ?? "").trim();
@@ -454,10 +397,8 @@ io.on("connection", (socket) => {
 
       const room = rooms[rid];
       if (!room) return ack?.({ ok: false, error: "ROOM_NOT_FOUND" });
-      // 게임 중 입장 막기
       if (room.phase !== "lobby") return ack?.({ ok: false, error: "GAME_ALREADY_STARTED" });
 
-      // 방 참가 + 플레이어 등록
       socket.join(rid);
       room.players[socket.id] = {
         id: socket.id,
@@ -468,7 +409,7 @@ io.on("connection", (socket) => {
         inboxPrompts: [],
       };
       socket.data.roomId = rid;
-      // 응답 + 상태 브로드캐스트
+
       ack?.({ ok: true, roomId: rid, state: getRoomState(rid) });
       emitRoomState(rid);
     } catch (e) {
@@ -477,14 +418,12 @@ io.on("connection", (socket) => {
     }
   });
 
-// 방 나가기  
+  // 방 나가기 
   socket.on("room:leave", (_payload, ack) => {
     const rid = socket.data.roomId;
     if (!rid || !rooms[rid]) return ack?.({ ok: true });
 
     const room = rooms[rid];
-
-    // 게임 중 나가면 게임 중단(간단 정책)
     const wasInGame = room.phase !== "lobby";
 
     delete room.players[socket.id];
@@ -510,7 +449,8 @@ io.on("connection", (socket) => {
     ack?.({ ok: true });
   });
 
-    socket.on("game:start", (_payload, ack) => {
+  // 게임 시작
+  socket.on("game:start", (_payload, ack) => {
     try {
       const rid = socket.data.roomId;
       const room = rid ? rooms[rid] : null;
@@ -529,6 +469,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // 제시어 제출
   socket.on("prompt:submit", ({ prompts }, ack) => {
     try {
       const rid = socket.data.roomId;
@@ -555,8 +496,8 @@ io.on("connection", (socket) => {
 
       if (!allPromptsSubmitted(room)) return;
 
-      // 모두 제출 완료
-      assignPrompts(room);
+      // 모두 제출 완료 시 처리
+      assignPrompts(room); // 여기서 에러가 났었음 (수정됨)
       initStoryChains(room);
 
       room.phase = "story";
@@ -571,6 +512,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // 스토리 제출
   socket.on("story:submit", ({ text }, ack) => {
     try {
       const rid = socket.data.roomId;
@@ -634,19 +576,21 @@ io.on("connection", (socket) => {
     }
   });
 
-
-// 연결 끊김 처리  
+  // 연결 끊김 처리 
   socket.on("disconnect", () => {
     const rid = socket.data.roomId;
 
     if (!rid || !rooms[rid]) return;
+    
     // 플레이어 제거
     delete rooms[rid].players[socket.id];
+    
     // 방장이 나갔으면 다른 사람을 방장으로
     if (rooms[rid].hostId === socket.id) {
       const nextHostId = Object.keys(rooms[rid].players)[0];
       rooms[rid].hostId = nextHostId ?? null;
     }
+    
     // 방 비었으면 삭제
     if (Object.keys(rooms[rid].players).length === 0) {
       delete rooms[rid];
