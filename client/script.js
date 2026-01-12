@@ -1,6 +1,3 @@
-// client/script.js
-// index.html에서 <script src="/socket.io/socket.io.js"></script> 로 socket.io client를 먼저 로드한 상태여야 함.
-
 const socket = io(); // 같은 서버(origin)로 연결 (http://localhost:3000)
 
 // ---- DOM ----
@@ -28,14 +25,11 @@ let myName = "";
 
 // ---- UI helpers ----
 function showScreen(which) {
-  // hidden 클래스가 있으면 숨김 처리한다는 전제(팀원 CSS)
   [screenName, screenLobby, screenWaiting].forEach((s) => s?.classList.add("hidden"));
   if (which) which.classList.remove("hidden");
 }
 
 function alertError(msg) {
-  // 지금 UI에 에러 영역이 없어서 일단 alert 사용
-  // 나중에 <div id="error"> 같은 영역 추가하면 여기를 교체하면 됨
   alert(msg);
 }
 
@@ -45,7 +39,7 @@ function renderPlayers(players, hostId) {
 
   players.forEach((p) => {
     const div = document.createElement("div");
-    div.className = "player-card"; // CSS 없으면 그냥 div로 뜸
+    div.className = "player-card";
 
     const isHost = p.id === hostId;
     div.textContent = `${p.name}${isHost ? " (방장)" : ""}`;
@@ -56,17 +50,17 @@ function renderPlayers(players, hostId) {
 
 // ---- Socket events ----
 socket.on("connect", () => {
-  console.log("✅ connected:", socket.id);
+  console.log("connected:", socket.id);
 });
 
 socket.on("disconnect", () => {
-  console.log("❌ disconnected");
+  console.log("disconnected");
   // 연결 끊기면 로비로 돌려버림
   showScreen(screenLobby);
 });
 
 socket.on("room:state", (state) => {
-  console.log("📦 room:state", state);
+  console.log("room:state", state);
 
   if (displayRoomCode) displayRoomCode.textContent = `#${state.roomId}`;
   renderPlayers(state.players, state.hostId);
@@ -75,7 +69,6 @@ socket.on("room:state", (state) => {
   // 룸 들어오면 대기실 화면 보여주기
   showScreen(screenWaiting);
 
-  // (선택) 방장만 시작 버튼 활성화 같은 거 하고 싶으면:
   if (btnStart) {
     btnStart.disabled = socket.id !== state.hostId;
   }

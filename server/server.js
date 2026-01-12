@@ -1,4 +1,4 @@
-// 서버 기본 뼈대
+// 서버 기본 뼈대 (Express + HTTP + Socket.io)
 const express = require("express");
 const http = require("http");
 const path = require("path");
@@ -7,6 +7,7 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 
+// Socket.io 서버 생성
 const io = new Server(server, {
   cors: {
     origin: true,
@@ -14,8 +15,7 @@ const io = new Server(server, {
   },
 });
 
-// 2. 정적 파일 경로 수정 (client -> dist)
-// 빌드된 리액트 파일들이 위치할 폴더
+// client 폴더의 index.html, css, js 제공
 app.use(express.static(path.join(__dirname, "..", "client")));
 
 app.get("/", (req, res) => {
@@ -23,7 +23,7 @@ app.get("/", (req, res) => {
 });
 
 
-//서버가 기억하는 방 목록
+//In-memory DB (서버가 기억하는 방/플레이어 상태)
 // =========================
 // In-memory DB
 // rooms[roomId] = {
@@ -47,6 +47,7 @@ function createRoomId() {
   }
 }
 
+// 프론트에 내려줄 "방 상태" 객체 생성
 function getRoomState(roomId) {
   const room = rooms[roomId];
   if (!room) return null;
@@ -64,20 +65,24 @@ function getRoomState(roomId) {
   };
 }
 
+// 같은 방에 있는 모든 사람에게 상태 브로드캐스트
 function emitRoomState(roomId) {
   const state = getRoomState(roomId);
   if (!state) return;
   io.to(roomId).emit("room:state", state);
 }
 
+
+// Socket.io 연결 처리
 io.on("connection", (socket) => {
   console.log("connected:", socket.id);
 
+ // 방 생성 
   socket.on("room:create", ({ name }, ack) => {
     try {
       const trimmed = String(name ?? "").trim();
       if (!trimmed) return ack?.({ ok: false, error: "NAME_REQUIRED" });
-
+      // 방 생성
       const roomId = createRoomId();
       rooms[roomId] = {
         roomId,
@@ -86,16 +91,16 @@ io.on("connection", (socket) => {
         createdAt: Date.now(),
         players: {},
       };
-
+      // 소켓을 방에 참가시키고 플레이어 등록
       socket.join(roomId);
       rooms[roomId].players[socket.id] = {
         id: socket.id,
         name: trimmed,
         joinedAt: Date.now(),
       };
-
+      // 소켓에 현재 방 ID 저장
       socket.data.roomId = roomId;
-
+      // 요청자에게 응답 + 방 전체에 상태 알림
       ack?.({ ok: true, roomId, state: getRoomState(roomId) });
       emitRoomState(roomId);
     } catch (e) {
@@ -104,6 +109,7 @@ io.on("connection", (socket) => {
     }
   });
 
+// 방 참가  
   socket.on("room:join", ({ roomId, name }, ack) => {
     try {
       const rid = String(roomId ?? "").trim();
@@ -114,7 +120,7 @@ io.on("connection", (socket) => {
 
       const room = rooms[rid];
       if (!room) return ack?.({ ok: false, error: "ROOM_NOT_FOUND" });
-
+      // 방 참가 + 플레이어 등록
       socket.join(rid);
       room.players[socket.id] = {
         id: socket.id,
@@ -122,7 +128,7 @@ io.on("connection", (socket) => {
         joinedAt: Date.now(),
       };
       socket.data.roomId = rid;
-
+      // 응답 + 상태 브로드캐스트
       ack?.({ ok: true, roomId: rid, state: getRoomState(rid) });
       emitRoomState(rid);
     } catch (e) {
@@ -131,14 +137,16 @@ io.on("connection", (socket) => {
     }
   });
 
+// 방 나가기  
   socket.on("room:leave", (_payload, ack) => {
     const rid = socket.data.roomId;
     if (!rid || !rooms[rid]) return ack?.({ ok: true });
-
+    // 플레이어 제거 + 소켓 방 탈퇴
     delete rooms[rid].players[socket.id];
     socket.leave(rid);
     socket.data.roomId = null;
 
+    // 방 비었으면 삭제
     if (Object.keys(rooms[rid].players).length === 0) {
       delete rooms[rid];
       return ack?.({ ok: true });
@@ -148,18 +156,20 @@ io.on("connection", (socket) => {
     ack?.({ ok: true });
   });
 
+
+// 연결 끊김 처리  
   socket.on("disconnect", () => {
     const rid = socket.data.roomId;
 
     if (!rid || !rooms[rid]) return;
-
+    // 플레이어 제거
     delete rooms[rid].players[socket.id];
-
+    // 방장이 나갔으면 다른 사람을 방장으로
     if (rooms[rid].hostId === socket.id) {
       const nextHostId = Object.keys(rooms[rid].players)[0];
       rooms[rid].hostId = nextHostId ?? null;
     }
-
+    // 방 비었으면 삭제
     if (Object.keys(rooms[rid].players).length === 0) {
       delete rooms[rid];
       return;
