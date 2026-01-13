@@ -1,4 +1,4 @@
-// 서버 기본 뼈대 (Express + HTTP + Socket.io)
+﻿// 서버 기본 뼈대 (Express + HTTP + Socket.io)
 const express = require("express");
 const http = require("http");
 const path = require("path");
@@ -550,6 +550,7 @@ io.on("connection", (socket) => {
     const rid = socket.data.roomId;
 
     if (!rid || !rooms[rid]) return;
+<<<<<<< Updated upstream
     // 플레이어 제거
     delete rooms[rid].players[socket.id];
     // 방장이 나갔으면 다른 사람을 방장으로
@@ -559,7 +560,28 @@ io.on("connection", (socket) => {
     }
     // 방 비었으면 삭제
     if (Object.keys(rooms[rid].players).length === 0) {
+=======
+
+    const room = rooms[rid];
+
+    // ?????? ???
+    delete room.players[socket.id];
+
+    // ??????????? ??? ???????????
+    if (room.hostId === socket.id) {
+      const nextHostId = Object.keys(room.players)[0];
+      room.hostId = nextHostId ?? null;
+    }
+
+    // ???????? ???
+    if (Object.keys(room.players).length === 0) {
+>>>>>>> Stashed changes
       delete rooms[rid];
+      return;
+    }
+
+    if (room.phase !== "lobby") {
+      abortGame(rid, "PLAYER_LEFT");
       return;
     }
 

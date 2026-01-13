@@ -1,48 +1,35 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>Story Phone - 실시간 스토리 게임</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>내 친구의 사생활</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div id="app">
-        <section id="screen-name" class="screen">
-            <div class="card">
-                <h1>STORY PHONE</h1>
-                <input type="text" id="input-nickname" placeholder="닉네임을 입력하세요" maxlength="10">
-                <button id="btn-next">다음으로</button>
-            </div>
-        </section>
+  <div id="app">
 
-        <section id="screen-lobby" class="screen hidden">
-            <div class="grid">
-                <div class="card shadow-yellow">
-                    <h2>방 만들기</h2>
-                    <p>새로운 게임을 시작합니다.</p>
-                    <button id="btn-create-room">방 생성</button>
-                </div>
-                <div class="card shadow-blue">
-                    <h2>참여하기</h2>
-                    <input type="text" id="input-room-code" placeholder="방 코드 입력">
-                    <button id="btn-join-room">방 입장</button>
-                </div>
-            </div>
-        </section>
+    <!-- 1. 입장 화면 -->
+    <section id="screen-entry" class="screen">
+      <div class="card">
+        <h1>내 친구의 사생활</h1>
+        <input id="input-nickname" placeholder="닉네임 입력" maxlength="10" />
+        <div style="display:flex; gap:10px;">
+          <button id="btn-create">방 만들기</button>
+          <button id="btn-go-join">방 들어가기</button>
+        </div>
+      </div>
+    </section>
 
-        <section id="screen-waiting" class="screen hidden">
-            <div class="card wide">
-                <div class="header">
-                    <h2>대기실 <span id="display-room-code">#----</span></h2>
-                </div>
-                <div id="player-list" class="player-grid"></div>
-                <div class="controls">
-                    <button id="btn-leave" class="btn-secondary">나가기</button>
-                    <button id="btn-start" class="btn-primary">게임 시작</button>
-                </div>
-            </div>
-        </section>
+    <!-- 2. 방 코드 입력 -->
+    <section id="screen-join" class="screen hidden">
+      <div class="card">
+        <h2>방 코드 입력</h2>
+        <input id="input-room-code" placeholder="예: 12345" />
+        <button id="btn-join">Go!</button>
+      </div>
+    </section>
 
+<<<<<<< Updated upstream
         <section id="screen-prompts" class="screen hidden">
             <div class="card wide">
                 <h2>4개의 제시어를 입력하세요</h2>
@@ -76,23 +63,91 @@
                     <p class="subtitle">이어쓰기</p>
                     <textarea id="input-story-text" rows="4" style="width:100%; padding:12px; border-radius:8px; border:2px solid #475569; background:#1e293b; color:white; box-sizing:border-box;" placeholder="여기에 문장을 입력하세요"></textarea>
                 </div>
+=======
+    <!-- 3. 로비 -->
+    <section id="screen-lobby" class="screen hidden">
+      <div class="card wide">
+        <h2>대기실 <span id="room-code"></span></h2>
 
-                <button id="btn-submit-story" style="margin-top: 10px;">제출</button>
-                <p id="story-wait-msg" class="hidden">다른 플레이어들을 기다리는 중...</p>
-            </div>
-        </section>
+        <div id="player-list" class="player-grid">
 
-        <section id="screen-results" class="screen hidden">
-            <div class="card wide">
-                <h2>결과</h2>
-                <div id="final-results"></div>
-                <button onclick="location.reload()">처음으로</button>
-            </div>
-        </section>
+        </div>
+>>>>>>> Stashed changes
 
-    </div>
+        <!-- 게스트에서 깜빡임 방지: 기본 hidden -->
+        <div id="host-controls" class="hidden">
+          <button id="btn-copy">코드 복사</button>
+          <button id="btn-start">게임 시작</button>
+        </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="script.js"></script>
+        <!-- id 중복 제거 -->
+        <p id="wait-msg-lobby" class="hidden">
+          방장이 게임을 시작하기를 기다리는 중…
+        </p>
+      </div>
+    </section>
+
+    <!-- 4. 제시어 입력 -->
+    <section id="screen-prompts" class="screen hidden">
+      <div class="card wide">
+        <h2>3개의 제시어를 입력하세요</h2>
+
+        <div class="prompt-inputs">
+            <input type="text" class="input-prompt" placeholder="제시어 1 (예: 배고픈 호랑이)">
+            <input type="text" class="input-prompt" placeholder="제시어 2 (예: 안드로메다)">
+            <input type="text" class="input-prompt" placeholder="제시어 3 (예: 코딩하는 곰)">
+        </div>
+
+
+        <button id="btn-submit-prompts">작성 완료</button>
+
+        <!-- id 중복 제거 -->
+        <p id="wait-msg-prompts" class="hidden">다른 플레이어들을 기다리는 중...</p>
+      </div>
+    </section>
+
+    <!-- 5. 스토리 이어쓰기 -->
+    <section id="screen-story" class="screen hidden">
+      <div class="card wide">
+        <h2>라운드 <span id="display-round">0</span> / <span id="display-total-rounds">0</span></h2>
+
+        <div style="margin-top: 10px;">
+          <p class="subtitle">이번 라운드 제시어</p>
+          <div id="my-inbox-prompts" class="result-grid"></div>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <p class="subtitle">지금까지의 이야기</p>
+          <div id="story-so-far" class="card" style="width: 100%; text-align:left;"></div>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <p class="subtitle">이어쓰기</p>
+          <textarea
+            id="input-story-text"
+            rows="4"
+            style="width:100%; padding:12px; border-radius:8px; border:2px solid #475569; background:#1e293b; color:white; box-sizing:border-box;"
+            placeholder="여기에 문장을 입력하세요"
+          ></textarea>
+        </div>
+
+        <button id="btn-submit-story" style="margin-top: 10px;">제출</button>
+        <p id="story-wait-msg" class="hidden">다른 플레이어들을 기다리는 중...</p>
+      </div>
+    </section>
+
+    <!-- 6. 결과 -->
+    <section id="screen-results" class="screen hidden">
+      <div class="card wide">
+        <h2>결과</h2>
+        <div id="final-results"></div>
+        <button onclick="location.reload()">처음으로</button>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>

@@ -1,31 +1,38 @@
 const socket = io();
 
-// ---- DOM ----
+// ---- DOM helper ----
 const $ = (id) => document.getElementById(id);
 
-const screenName = $("screen-name");
+// ---- Screens ----
+const screenEntry = $("screen-entry");
+const screenJoin = $("screen-join");
 const screenLobby = $("screen-lobby");
-const screenWaiting = $("screen-waiting");
 const screenPrompts = $("screen-prompts");
 const screenStory = $("screen-story");
 const screenResults = $("screen-results");
 
+// ---- Entry ----
 const nicknameInput = $("input-nickname");
-const btnNext = $("btn-next");
+const btnCreate = $("btn-create");
+const btnGoJoin = $("btn-go-join");
 
-const btnCreateRoom = $("btn-create-room");
+// ---- Join ----
 const roomCodeInput = $("input-room-code");
-const btnJoinRoom = $("btn-join-room");
+const btnJoin = $("btn-join");
 
-const displayRoomCode = $("display-room-code");
+// ---- Lobby ----
+const roomCodeText = $("room-code");
 const playerList = $("player-list");
-
-const btnLeave = $("btn-leave");
+const hostControls = $("host-controls");
+const btnCopy = $("btn-copy");
 const btnStart = $("btn-start");
+const waitMsgLobby = $("wait-msg-lobby");
 
+// ---- Prompts ----
 const btnSubmitPrompts = $("btn-submit-prompts");
-const waitMsg = $("wait-msg");
+const waitMsgPrompts = $("wait-msg-prompts");
 
+// ---- Story ----
 const displayRound = $("display-round");
 const displayTotalRounds = $("display-total-rounds");
 const myInboxPrompts = $("my-inbox-prompts");
@@ -34,47 +41,76 @@ const inputStoryText = $("input-story-text");
 const btnSubmitStory = $("btn-submit-story");
 const storyWaitMsg = $("story-wait-msg");
 
+// ---- Results ----
 const finalResults = $("final-results");
 
 // ---- Local state ----
-let myName = "";
-let currentRoomState = null;
-let currentRoundPayload = null;
+let app = {
+  nickname: "",
+  role: null, // "host" | "guest"
+  roomId: null,
+  lastRoomState: null
+};
 
 // ---- UI helpers ----
-function showScreen(which) {
-  [screenName, screenLobby, screenWaiting, screenPrompts, screenStory, screenResults].forEach((s) =>
+function showScreen(target) {
+  [screenEntry, screenJoin, screenLobby, screenPrompts, screenStory, screenResults].forEach((s) =>
     s?.classList.add("hidden")
   );
-  if (which) which.classList.remove("hidden");
+  target?.classList.remove("hidden");
 }
 
 function alertError(msg) {
   alert(msg);
 }
 
-function renderPlayers(players, hostId) {
-  if (!playerList) return;
+function renderPlayers(players = [], hostId) {
   playerList.innerHTML = "";
-
   players.forEach((p) => {
     const div = document.createElement("div");
-    div.className = "player-card";
-    const isHost = p.id === hostId;
-    const promptDone = p.submitted?.prompts ? " (제시어 완료)" : "";
-    div.textContent = `${p.name}${isHost ? " (방장)" : ""}${promptDone}`;
+    div.className = "player-item";
+    div.textContent = `${p.name}${p.id === hostId ? " (방장)" : ""}`;
     playerList.appendChild(div);
   });
 }
 
+function updateLobbyUI(state) {
+  const isHost = socket.id === state.hostId;
+
+  if (hostControls && waitMsgLobby) {
+    if (isHost) {
+      hostControls.classList.remove("hidden");
+      waitMsgLobby.classList.add("hidden");
+    } else {
+      hostControls.classList.add("hidden");
+      waitMsgLobby.classList.remove("hidden");
+    }
+  }
+
+  if (btnStart) btnStart.disabled = !isHost; // ??????????????
+}
+
+
+function enterLobby(state) {
+  // state.roomId 또는 state.roomID 등 서버 구현 차이 대비
+  const roomId = state.roomId ?? state.roomID ?? state.id;
+  app.roomId = roomId;
+  if (roomCodeText) roomCodeText.textContent = `#${roomId || "----"}`;
+
+  renderPlayers(state.players || [], state.hostId);
+  updateLobbyUI(state);
+
+  showScreen(screenLobby);
+}
+
 function renderPromptChips(container, items) {
-  if (!container) return;
   container.innerHTML = "";
-  for (const t of items || []) {
+  (items || []).forEach((t) => {
     const chip = document.createElement("div");
     chip.className = "result-item";
     chip.textContent = t;
     container.appendChild(chip);
+<<<<<<< Updated upstream
   }
 }
 
@@ -90,12 +126,13 @@ function renderStorySoFar(entries) {
       return `<div style="margin-bottom:8px;"><b>${idx + 1}.</b> ${safe}</div>`;
     })
     .join("");
+=======
+  });
+>>>>>>> Stashed changes
 }
 
 function renderFinalResults(payload) {
-  if (!finalResults) return;
   finalResults.innerHTML = "";
-
   const chains = payload?.chains || [];
   if (chains.length === 0) {
     finalResults.textContent = "결과가 없어.";
@@ -104,11 +141,11 @@ function renderFinalResults(payload) {
 
   for (const chain of chains) {
     const wrap = document.createElement("div");
-    wrap.className = "card";
-    wrap.style.width = "100%";
+    wrap.className = "card wide";
     wrap.style.textAlign = "left";
     wrap.style.marginBottom = "12px";
 
+<<<<<<< Updated upstream
     const title = document.createElement("div");
     title.innerHTML = `<h3 style="margin:0 0 8px 0;">${chain.ownerName}의 이야기</h3>`;
     wrap.appendChild(title);
@@ -119,43 +156,73 @@ function renderFinalResults(payload) {
       .join("");
     wrap.appendChild(body);
 
+=======
+    wrap.innerHTML = `
+      <h3 style="margin:0 0 8px 0;">${chain.ownerName}의 이야기<</h3>
+      ${(chain.entries || []).map((e) => `<div style="margin-bottom:8px;">${e.text}</div>`).join("")}
+    `;
+>>>>>>> Stashed changes
     finalResults.appendChild(wrap);
   }
 }
 
-function goByPhase(state) {
-  if (!state) return;
+// ---- Debug: 클릭/소켓 상태 확인용 ----
+socket.on("connect", () => console.log("connected:", socket.id));
+socket.on("disconnect", () => console.log("disconnected"));
 
-  if (displayRoomCode) displayRoomCode.textContent = `#${state.roomId}`;
-  renderPlayers(state.players || [], state.hostId);
+// ---- Entry actions ----
+btnCreate?.addEventListener("click", () => {
+  console.log("[UI] btn-create clicked");
+  const name = nicknameInput.value.trim();
+  if (!name) return alertError("닉네임을 입력해줘!");
 
-  if (btnStart) {
-    btnStart.disabled = socket.id !== state.hostId;
-  }
+  app.nickname = name;
+  app.role = "host";
+
+  // ✅ ACK 의존 제거: emit만 하고, 결과는 room:state로 받는다.
+  socket.emit("room:create", { name: app.nickname });
+  // UX 반응(선택): 로딩/대기 표시를 넣고 싶으면 여기에서 처리 가능
+});
+
+btnGoJoin?.addEventListener("click", () => {
+  console.log("[UI] btn-go-join clicked");
+  const name = nicknameInput.value.trim();
+  if (!name) return alertError("닉네임을 입력해줘!");
+
+  app.nickname = name;
+  app.role = "guest";
+  showScreen(screenJoin);
+});
+
+// ---- Join actions ----
+btnJoin?.addEventListener("click", () => {
+  console.log("[UI] btn-join clicked");
+  const code = roomCodeInput.value.trim();
+  if (!code) return alertError("방 코드를 입력해줘!");
+
+  // ✅ ACK 의존 제거
+  socket.emit("room:join", { roomId: code, name: app.nickname });
+});
+
+// ---- Room state (single source of truth) ----
+socket.on("room:state", (state) => {
+  console.log("room:state", state);
+  app.lastRoomState = state;
 
   if (state.phase === "lobby") {
-    showScreen(screenWaiting);
+    enterLobby(state);
     return;
   }
 
   if (state.phase === "prompt") {
     showScreen(screenPrompts);
-
     if (btnSubmitPrompts) btnSubmitPrompts.disabled = false;
-    if (waitMsg) waitMsg.classList.add("hidden");
-
-    // 이미 제출한 사람은 버튼 잠그고 대기 메시지
-    const me = (state.players || []).find((p) => p.id === socket.id);
-    if (me?.submitted?.prompts) {
-      if (btnSubmitPrompts) btnSubmitPrompts.disabled = true;
-      if (waitMsg) waitMsg.classList.remove("hidden");
-    }
+    if (waitMsgPrompts) waitMsgPrompts.classList.add("hidden");
     return;
   }
 
   if (state.phase === "story") {
     showScreen(screenStory);
-    // round payload는 story:round 이벤트에서 갱신됨
     return;
   }
 
@@ -164,31 +231,37 @@ function goByPhase(state) {
     return;
   }
 
-  showScreen(screenWaiting);
-}
-
-// ---- Socket events ----
-socket.on("connect", () => {
-  console.log("connected:", socket.id);
+  // fallback
+  enterLobby(state);
 });
 
-socket.on("disconnect", () => {
-  console.log("disconnected");
-  showScreen(screenLobby);
+// ---- Host actions ----
+btnCopy?.addEventListener("click", () => {
+  if (!app.roomId) return alertError("방 코드가 아직 없어.");
+  navigator.clipboard.writeText(String(app.roomId));
+  alert("방 코드가 복사되었습니다!");
 });
 
-socket.on("room:state", (state) => {
-  console.log("room:state", state);
-  currentRoomState = state;
-  goByPhase(state);
+btnStart?.addEventListener("click", () => {
+  socket.emit("game:start");
 });
 
-socket.on("game:aborted", ({ reason }) => {
-  alertError(`게임이 중단됐어: ${reason}`);
-  showScreen(screenWaiting);
+// ---- Prompts ----
+btnSubmitPrompts?.addEventListener("click", () => {
+  const inputs = Array.from(document.querySelectorAll(".input-prompt"));
+  const prompts = inputs.map((i) => i.value.trim()).filter(Boolean);
+
+  if (prompts.length !== 3) return alertError("제시어 3개를 모두 입력해줘!");
+
+  btnSubmitPrompts.disabled = true;
+  waitMsgPrompts.classList.remove("hidden");
+
+  socket.emit("prompt:submit", { prompts });
 });
 
+// ---- Story round payload ----
 socket.on("story:round", (payload) => {
+<<<<<<< Updated upstream
   currentRoundPayload = payload;
 
   if (displayRound) displayRound.textContent = String((payload.round ?? 0) + 1);
@@ -196,19 +269,45 @@ socket.on("story:round", (payload) => {
 
   renderPromptChips(myInboxPrompts, payload.inboxPrompts || []);
   renderStorySoFar(payload.chainEntries || []);
+=======
+  const round = payload.round ?? 0;
+  displayRound.textContent = String(round + 1);
+  displayTotalRounds.textContent = String(payload.totalRounds ?? 0);
 
-  if (inputStoryText) inputStoryText.value = "";
-  if (btnSubmitStory) btnSubmitStory.disabled = false;
-  if (storyWaitMsg) storyWaitMsg.classList.add("hidden");
+  renderPromptChips(myInboxPrompts, payload.inboxPrompts || []);
+
+  const entries = payload.chainEntries || [];
+  storySoFar.innerHTML = entries.length
+    ? entries.map((e) => `<div style="margin-bottom:8px;">${e.text || ""}</div>`).join("")
+    : "";
+>>>>>>> Stashed changes
+
+  inputStoryText.value = "";
+  btnSubmitStory.disabled = false;
+  storyWaitMsg.classList.add("hidden");
 
   showScreen(screenStory);
 });
 
+// ---- Submit story ----
+btnSubmitStory?.addEventListener("click", () => {
+  const text = inputStoryText.value.trim();
+  if (!text) return alertError("문장을 입력해줘!");
+
+  btnSubmitStory.disabled = true;
+  storyWaitMsg.classList.remove("hidden");
+
+  socket.emit("story:submit", { text });
+});
+
+
+// ---- Results payload ----
 socket.on("game:result", (payload) => {
   renderFinalResults(payload);
   showScreen(screenResults);
 });
 
+<<<<<<< Updated upstream
 // ---- Button handlers ----
 btnNext?.addEventListener("click", () => {
   const trimmed = String(nicknameInput?.value || "").trim();
@@ -298,3 +397,7 @@ btnSubmitStory?.addEventListener("click", () => {
 
 // ---- 초기 화면 ----
 showScreen(screenName);
+=======
+// ---- Init ----
+showScreen(screenEntry);
+>>>>>>> Stashed changes

@@ -1,63 +1,179 @@
 :root {
-    --bg-color: #1e293b;
-    --card-bg: #334155;
-    --accent-yellow: #f59e0b;
-    --accent-blue: #3b82f6;
-    --text-white: #f8fafc;
+  --bg-color: #1e293b;
+  --card-bg: #334155;
+  --accent-yellow: #f59e0b;
+  --accent-blue: #3b82f6;
+  --text-white: #f8fafc;
 }
 
+/* --------------------
+   Base
+-------------------- */
 body {
-    margin: 0; font-family: 'Arial', sans-serif;
-    background-color: var(--bg-color); color: var(--text-white);
-    display: flex; justify-content: center; align-items: center; min-height: 100vh;
+  margin: 0;
+  font-family: 'Arial', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-white);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
 }
 
-.screen { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-.hidden { display: none !important; }
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
 
+.hidden {
+  display: none !important;
+}
+
+/* --------------------
+   Card
+-------------------- */
 .card {
-    background: var(--card-bg); padding: 2rem; border-radius: 20px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.3); text-align: center; width: 320px;
+  background: var(--card-bg);
+  padding: 2rem;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+  text-align: center;
+  width: 320px;
 }
 
-.card.wide { width: 600px; }
-
-input {
-    width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px;
-    border: 2px solid #475569; background: #1e293b; color: white; box-sizing: border-box;
+.card.wide {
+  width: 600px;
 }
 
+/* --------------------
+   Inputs
+-------------------- */
+input,
+textarea {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  border: 2px solid #475569;
+  background: #1e293b;
+  color: white;
+  box-sizing: border-box;
+}
+
+/* --------------------
+   Buttons
+-------------------- */
 button {
-    width: 100%; padding: 12px; border-radius: 8px; border: none;
-    font-weight: bold; cursor: pointer; transition: transform 0.1s;
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.1s;
 }
 
-button:active { transform: scale(0.98); }
+button:active {
+  transform: scale(0.98);
+}
 
-#btn-next, #btn-create-room { background: var(--accent-yellow); color: #000; }
-#btn-join-room { background: var(--accent-blue); color: #fff; }
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
+/* Entry */
+#btn-create {
+  background: var(--accent-yellow);
+  color: #000;
+}
+
+#btn-go-join {
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+/* Join */
+#btn-join {
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+/* Lobby */
+#btn-copy {
+  background: #475569;
+  color: #fff;
+}
+
+#btn-start {
+  background: var(--accent-yellow);
+  color: #000;
+}
+
+/* --------------------
+   Player List
+-------------------- */
 .player-grid {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 20px 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 20px 0;
 }
 
-.player-item {
-    background: #475569; padding: 10px; border-radius: 10px; font-size: 0.9rem;
+.player-item,
+.player-card {
+  background: #475569;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 0.9rem;
 }
 
+/* --------------------
+   Prompts
+-------------------- */
 .prompt-inputs {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin: 20px 0;
 }
 
+.subtitle {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
+/* --------------------
+   Prompt / Story Chips
+-------------------- */
 .result-grid {
-    display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 10px; margin: 20px 0; max-height: 400px; overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .result-item {
-    background: var(--accent-blue); padding: 8px 15px;
-    border-radius: 20px; font-size: 0.9rem; font-weight: bold;
+  background: var(--accent-blue);
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: bold;
 }
 
-.subtitle { color: #94a3b8; font-size: 0.9rem; margin-bottom: 10px; }
-#wait-msg { color: var(--accent-yellow); font-weight: bold; margin-top: 15px; }
+/* --------------------
+   Wait Messages
+-------------------- */
+#wait-msg-lobby,
+#wait-msg-prompts,
+#story-wait-msg {
+  color: var(--accent-yellow);
+  font-weight: bold;
+  margin-top: 15px;
+}
