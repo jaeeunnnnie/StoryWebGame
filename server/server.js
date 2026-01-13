@@ -551,6 +551,7 @@ io.on("connection", (socket) => {
 
     if (!rid || !rooms[rid]) return;
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     // 플레이어 제거
     delete rooms[rid].players[socket.id];
     // 방장이 나갔으면 다른 사람을 방장으로
@@ -560,6 +561,22 @@ io.on("connection", (socket) => {
     }
     // 방 비었으면 삭제
     if (Object.keys(rooms[rid].players).length === 0) {
+=======
+
+    const room = rooms[rid];
+
+    // ?????? ???
+    delete room.players[socket.id];
+
+    // ??????????? ??? ???????????
+    if (room.hostId === socket.id) {
+      const nextHostId = Object.keys(room.players)[0];
+      room.hostId = nextHostId ?? null;
+    }
+
+    // ???????? ???
+    if (Object.keys(room.players).length === 0) {
+>>>>>>> Stashed changes
 =======
 
     const room = rooms[rid];

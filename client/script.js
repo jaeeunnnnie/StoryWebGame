@@ -111,6 +111,7 @@ function renderPromptChips(container, items) {
     chip.textContent = t;
     container.appendChild(chip);
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   }
 }
 
@@ -126,6 +127,9 @@ function renderStorySoFar(entries) {
       return `<div style="margin-bottom:8px;"><b>${idx + 1}.</b> ${safe}</div>`;
     })
     .join("");
+=======
+  });
+>>>>>>> Stashed changes
 =======
   });
 >>>>>>> Stashed changes
@@ -146,6 +150,7 @@ function renderFinalResults(payload) {
     wrap.style.marginBottom = "12px";
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     const title = document.createElement("div");
     title.innerHTML = `<h3 style="margin:0 0 8px 0;">${chain.ownerName}의 이야기</h3>`;
     wrap.appendChild(title);
@@ -157,10 +162,15 @@ function renderFinalResults(payload) {
     wrap.appendChild(body);
 
 =======
+=======
+>>>>>>> Stashed changes
     wrap.innerHTML = `
       <h3 style="margin:0 0 8px 0;">${chain.ownerName}의 이야기<</h3>
       ${(chain.entries || []).map((e) => `<div style="margin-bottom:8px;">${e.text}</div>`).join("")}
     `;
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     finalResults.appendChild(wrap);
   }
@@ -262,10 +272,16 @@ btnSubmitPrompts?.addEventListener("click", () => {
 // ---- Story round payload ----
 socket.on("story:round", (payload) => {
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
   currentRoundPayload = payload;
 
   if (displayRound) displayRound.textContent = String((payload.round ?? 0) + 1);
   if (displayTotalRounds) displayTotalRounds.textContent = String(payload.totalRounds ?? 0);
+=======
+  const round = payload.round ?? 0;
+  displayRound.textContent = String(round + 1);
+  displayTotalRounds.textContent = String(payload.totalRounds ?? 0);
+>>>>>>> Stashed changes
 
   renderPromptChips(myInboxPrompts, payload.inboxPrompts || []);
   renderStorySoFar(payload.chainEntries || []);
@@ -274,6 +290,7 @@ socket.on("story:round", (payload) => {
   displayRound.textContent = String(round + 1);
   displayTotalRounds.textContent = String(payload.totalRounds ?? 0);
 
+<<<<<<< Updated upstream
   renderPromptChips(myInboxPrompts, payload.inboxPrompts || []);
 
   const entries = payload.chainEntries || [];
@@ -282,6 +299,13 @@ socket.on("story:round", (payload) => {
     : "";
 >>>>>>> Stashed changes
 
+=======
+  const entries = payload.chainEntries || [];
+  storySoFar.innerHTML = entries.length
+    ? entries.map((e) => `<div style="margin-bottom:8px;">${e.text || ""}</div>`).join("")
+    : "";
+
+>>>>>>> Stashed changes
   inputStoryText.value = "";
   btnSubmitStory.disabled = false;
   storyWaitMsg.classList.add("hidden");
@@ -307,6 +331,7 @@ socket.on("game:result", (payload) => {
   showScreen(screenResults);
 });
 
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 // ---- Button handlers ----
 btnNext?.addEventListener("click", () => {
@@ -397,6 +422,10 @@ btnSubmitStory?.addEventListener("click", () => {
 
 // ---- 초기 화면 ----
 showScreen(screenName);
+=======
+// ---- Init ----
+showScreen(screenEntry);
+>>>>>>> Stashed changes
 =======
 // ---- Init ----
 showScreen(screenEntry);
