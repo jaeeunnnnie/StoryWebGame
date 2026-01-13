@@ -6,6 +6,7 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
+
 // ====================================================================
 // Socket.io 서버 생성
 const io = new Server(server, {
@@ -23,21 +24,18 @@ app.get("/", (req, res) => {
 });
 // ====================================================================
 
-//In-memory DB (서버가 기억하는 방/플레이어 상태)
-// =========================
 // In-memory DB
 // rooms[roomId] = {
 //   roomId,
 //   hostId,
-//   phase: "lobby" | "prompt" | "waiting",
+//   phase: "lobby" | "prompt" | "story" | "result",
 //   createdAt,
 //   players: {
-//     [socketId]: { id, name, joinedAt }
-//   }
+//     [socketId]: { id, name, joinedAt, submitted, prompts, inboxPrompts }
+//   },
+//   game: { ... }
 // }
-// =========================
 const rooms = {};
-
 
 // 5자리 방 번호 생성 (중복 방지)
 function createRoomId() {
@@ -57,21 +55,14 @@ function shuffle(arr) {
 }
 
 function getRoom(roomId) {
-  const r = rooms[roomId];
-  return r || null;
+  return rooms[roomId] || null;
 }
-
-function getPlayers(room) {
-  return Object.values(room.players);
-}
-
 
 // 프론트에 내려줄 방 상태 객체 생성
 function getRoomState(roomId) {
   const room = rooms[roomId];
   if (!room) return null;
 
-   // 플레이어 목록 
   const playersArr = Object.values(room.players).map((p) => ({
     id: p.id,
     name: p.name,
@@ -116,7 +107,7 @@ function emitRoomState(roomId) {
   io.to(roomId).emit("room:state", state);
 }
 
-// 게임 로직 함수들
+// 게임 로직
 function ensureGame(room) {
   if (!room.game) {
     room.game = {
@@ -138,8 +129,9 @@ function resetForNewGame(room) {
   ensureGame(room);
 
   const ids = Object.keys(room.players);
+
   room.game.round = 0;
-  room.game.turnOrder = ids.slice(); // 플레이어 순서 고정
+  room.game.turnOrder = ids.slice(); // 플레이어 순서 고정(원하면 shuffle(ids)로 바꿔도 됨)
   room.game.totalRounds = Math.max(1, ids.length - 1);
 
   room.game.promptPool = {};
@@ -151,55 +143,49 @@ function resetForNewGame(room) {
   // 플레이어 상태 초기화
   for (const sid of ids) {
     const p = room.players[sid];
+    if (!p) continue;
     p.submitted = { prompts: false, story: false };
     p.prompts = [];
     p.inboxPrompts = [];
   }
 }
 
-// 제시어 로직
-
 // 모든 플레이어가 제시어 제출했는지 확인
 function allPromptsSubmitted(room) {
   const ids = Object.keys(room.players);
   if (ids.length === 0) return false;
-  return ids.every((sid) => room.players[sid].submitted?.prompts);
+  return ids.every((sid) => room.players[sid]?.submitted?.prompts === true);
 }
 
 // 제시어를 모아서 셔플 후 각 플레이어에게 분배
 function assignPrompts(room) {
   const ids = Object.keys(room.players);
   const all = [];
-  
+
   // 모든 제시어 수집
   for (const sid of ids) {
     const p = room.players[sid];
-    for (const s of p.prompts || []) all.push(s);
+    for (const s of p?.prompts || []) all.push(s);
   }
 
   shuffle(all);
 
-  // 플레이어에게 4개씩 분배(플레이어 수*4만큼 사용)
-  const per = 4;
+  // 플레이어에게 3개씩 분배(플레이어 수*3만큼 사용)
+  const per = 3;
   for (let i = 0; i < ids.length; i++) {
     const sid = ids[i];
     const slice = all.slice(i * per, i * per + per);
     room.game.inboxPrompts[sid] = slice;
-    room.players[sid].inboxPrompts = slice;
+    if (room.players[sid]) room.players[sid].inboxPrompts = slice;
   }
 }
-
-// 스토리 체인 계산 로직
 
 // 각 플레이어의 스토리 체인 초기화
 function initStoryChains(room) {
   const order = room.game.turnOrder;
   room.game.storyChains = {};
   for (const ownerId of order) {
-    room.game.storyChains[ownerId] = {
-      ownerId,
-      entries: [],
-    };
+    room.game.storyChains[ownerId] = { ownerId, entries: [] };
   }
 }
 
@@ -214,8 +200,7 @@ function computeChainForPlayer(room, playerId) {
 
   // 라운드 r에서 player i가 맡을 체인의 ownerIndex = (i - r + n) % n
   const ownerIndex = (i - r + n) % n;
-  const chainId = order[ownerIndex]; // chainId = ownerId
-  return chainId;
+  return order[ownerIndex]; // chainId = ownerId
 }
 
 // 라운드 시작 처리
@@ -231,6 +216,8 @@ function startRound(roomId) {
   room.game.submittedStory[round] = new Set();
 
   for (const sid of order) {
+    if (!room.players[sid]) continue; // 게임 도중 나간 플레이어 방어
+
     const chainId = computeChainForPlayer(room, sid);
     if (!chainId) continue;
 
@@ -253,15 +240,16 @@ function startRound(roomId) {
       inboxPrompts: room.game.inboxPrompts[sid] || [],
     });
 
-    // player 제출 상태 초기화
-    room.players[sid].submitted.story = false;
+    // player 제출 상태 초기화(방어)
+    if (room.players[sid]) {
+      room.players[sid].submitted.story = false;
+    }
   }
 
   emitRoomState(room.roomId);
 }
 
-// 결과 정리
-
+// 결과 페이로드 생성
 function buildResultPayload(room) {
   const order = room.game.turnOrder;
 
@@ -308,18 +296,16 @@ function abortGame(roomId, reason) {
   emitRoomState(roomId);
 }
 
-
 // Socket.io 연결 처리
 io.on("connection", (socket) => {
   console.log("connected:", socket.id);
 
- // 방 생성 
+  // 방 생성
   socket.on("room:create", ({ name }, ack) => {
     try {
       const trimmed = String(name ?? "").trim();
       if (!trimmed) return ack?.({ ok: false, error: "NAME_REQUIRED" });
 
-      // 방 생성
       const roomId = createRoomId();
       rooms[roomId] = {
         roomId,
@@ -330,7 +316,6 @@ io.on("connection", (socket) => {
         game: null,
       };
 
-      // 소켓을 방에 참가시키고 플레이어 등록
       socket.join(roomId);
       rooms[roomId].players[socket.id] = {
         id: socket.id,
@@ -341,10 +326,8 @@ io.on("connection", (socket) => {
         inboxPrompts: [],
       };
 
-      // 소켓에 현재 방 ID 저장
       socket.data.roomId = roomId;
 
-      // 요청자에게 응답 + 방 전체에 상태 알림
       ack?.({ ok: true, roomId, state: getRoomState(roomId) });
       emitRoomState(roomId);
     } catch (e) {
@@ -353,7 +336,7 @@ io.on("connection", (socket) => {
     }
   });
 
-// 방 참가  
+  // 방 참가
   socket.on("room:join", ({ roomId, name }, ack) => {
     try {
       const rid = String(roomId ?? "").trim();
@@ -364,10 +347,8 @@ io.on("connection", (socket) => {
 
       const room = rooms[rid];
       if (!room) return ack?.({ ok: false, error: "ROOM_NOT_FOUND" });
-      // 게임 중 입장 막기
       if (room.phase !== "lobby") return ack?.({ ok: false, error: "GAME_ALREADY_STARTED" });
 
-      // 방 참가 + 플레이어 등록
       socket.join(rid);
       room.players[socket.id] = {
         id: socket.id,
@@ -378,7 +359,7 @@ io.on("connection", (socket) => {
         inboxPrompts: [],
       };
       socket.data.roomId = rid;
-      // 응답 + 상태 브로드캐스트
+
       ack?.({ ok: true, roomId: rid, state: getRoomState(rid) });
       emitRoomState(rid);
     } catch (e) {
@@ -387,14 +368,12 @@ io.on("connection", (socket) => {
     }
   });
 
-// 방 나가기  
+  // 방 나가기
   socket.on("room:leave", (_payload, ack) => {
     const rid = socket.data.roomId;
     if (!rid || !rooms[rid]) return ack?.({ ok: true });
 
     const room = rooms[rid];
-
-    // 게임 중 나가면 게임 중단(간단 정책)
     const wasInGame = room.phase !== "lobby";
 
     delete room.players[socket.id];
@@ -411,16 +390,14 @@ io.on("connection", (socket) => {
       room.hostId = nextHostId ?? null;
     }
 
-    if (wasInGame) {
-      abortGame(rid, "PLAYER_LEFT");
-    } else {
-      emitRoomState(rid);
-    }
+    if (wasInGame) abortGame(rid, "PLAYER_LEFT");
+    else emitRoomState(rid);
 
     ack?.({ ok: true });
   });
 
-    socket.on("game:start", (_payload, ack) => {
+  // 게임 시작
+  socket.on("game:start", (_payload, ack) => {
     try {
       const rid = socket.data.roomId;
       const room = rid ? rooms[rid] : null;
@@ -439,6 +416,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // 제시어 제출
   socket.on("prompt:submit", ({ prompts }, ack) => {
     try {
       const rid = socket.data.roomId;
@@ -481,6 +459,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // 스토리 제출
   socket.on("story:submit", ({ text }, ack) => {
     try {
       const rid = socket.data.roomId;
@@ -499,8 +478,7 @@ io.on("connection", (socket) => {
       const chainId = room.game.chainForPlayer[socket.id];
       if (!chainId) return ack?.({ ok: false, error: "CHAIN_NOT_ASSIGNED" });
 
-      const set = room.game.submittedStory[round];
-      if (!set) room.game.submittedStory[round] = new Set();
+      if (!room.game.submittedStory[round]) room.game.submittedStory[round] = new Set();
 
       // 중복 제출 방지
       if (room.game.submittedStory[round].has(socket.id)) {
@@ -510,11 +488,7 @@ io.on("connection", (socket) => {
       const chain = room.game.storyChains[chainId];
       if (!chain) return ack?.({ ok: false, error: "CHAIN_NOT_FOUND" });
 
-      chain.entries.push({
-        round,
-        writerId: socket.id,
-        text: t,
-      });
+      chain.entries.push({ round, writerId: socket.id, text: t });
 
       room.game.submittedStory[round].add(socket.id);
       p.submitted.story = true;
@@ -544,67 +518,38 @@ io.on("connection", (socket) => {
     }
   });
 
-
-// 연결 끊김 처리  
+  // 연결 끊김 처리
   socket.on("disconnect", () => {
-    const rid = socket.data.roomId;
-
-    if (!rid || !rooms[rid]) return;
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-    // 플레이어 제거
-    delete rooms[rid].players[socket.id];
-    // 방장이 나갔으면 다른 사람을 방장으로
-    if (rooms[rid].hostId === socket.id) {
-      const nextHostId = Object.keys(rooms[rid].players)[0];
-      rooms[rid].hostId = nextHostId ?? null;
-    }
-    // 방 비었으면 삭제
-    if (Object.keys(rooms[rid].players).length === 0) {
-=======
+    const rid = socket.data?.roomId;
+    if (!rid) return;
 
     const room = rooms[rid];
+    if (!room) return;
 
-    // ?????? ???
     delete room.players[socket.id];
 
-    // ??????????? ??? ???????????
     if (room.hostId === socket.id) {
       const nextHostId = Object.keys(room.players)[0];
       room.hostId = nextHostId ?? null;
     }
 
-    // ???????? ???
     if (Object.keys(room.players).length === 0) {
->>>>>>> Stashed changes
-=======
-
-    const room = rooms[rid];
-
-    // ?????? ???
-    delete room.players[socket.id];
-
-    // ??????????? ??? ???????????
-    if (room.hostId === socket.id) {
-      const nextHostId = Object.keys(room.players)[0];
-      room.hostId = nextHostId ?? null;
-    }
-
-    // ???????? ???
-    if (Object.keys(room.players).length === 0) {
->>>>>>> Stashed changes
       delete rooms[rid];
       return;
     }
 
+  
     if (room.phase !== "lobby") {
       abortGame(rid, "PLAYER_LEFT");
       return;
     }
 
     emitRoomState(rid);
-  });
-});
+  }); // end disconnect
+}); // end connection
 
-const PORT = 3000;
-server.listen(PORT, () => console.log(`http://localhost:${PORT}`));
+// ✅ 서버 실행 (이게 없으면 node server.js가 조용히 종료됨)
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log("Server running on http://localhost:" + PORT);
+});
