@@ -111,6 +111,7 @@ function ensureGame(room) {
       storyChains: {},
       chainForPlayer: {},
       submittedStory: {},
+      timerInterval: null, // 타이머 interval ID
     };
   }
 }
@@ -130,7 +131,7 @@ function resetForNewGame(room) {
   room.game.storyChains = {};
   room.game.chainForPlayer = {};
   room.game.submittedStory = {};
-  room.game.usedPromptSet = new Set(); // 게임 전체에서 사용된 제시어 추적
+  room.game.usedCustomPromptSet = new Set(); // 커스텀 카드만 게임 전체에서 추적
 
   // 플레이어 상태 초기화
   for (const sid of ids) {
@@ -162,59 +163,46 @@ function allPromptsSubmitted(room) {
 
 // 제시어를 모아서 셔플 후 각 플레이어에게 분배
 // 라운드마다 호출되어 새로운 제시어를 뽑음
-// 한 번이라도 사용된 제시어는 다시 나오지 않음
+// 커스텀 카드(플레이어가 낸 카드)는 게임 전체에서 한 번만 사용
+// 기본 카드는 매 라운드마다 리필됨 (한 라운드 내에서는 중복 X)
 // ====================================================================
-// [수정됨] 제시어를 모아서 셔플 후 각 플레이어에게 분배
 function assignPrompts(room) {
   const ids = Object.keys(room.players);
-  const per = 3;
+  const per = 3; // 플레이어당 카드 수
   if (ids.length === 0) return;
 
-  // 게임 전체에서 사용된 제시어 ID Set (없으면 초기화)
-  if (!room.game.usedPromptSet) {
-    room.game.usedPromptSet = new Set();
+  // 게임 전체에서 사용된 커스텀 제시어 ID Set (기본 카드는 매 라운드 리필)
+  if (!room.game.usedCustomPromptSet) {
+    room.game.usedCustomPromptSet = new Set();
   }
-  const usedPromptSet = room.game.usedPromptSet;
+  const usedCustomPromptSet = room.game.usedCustomPromptSet;
 
   // ----- 풀 구성: 커스텀 / 기본 -----
-  // 이제 문자열(string)이 아니라 { id, text } 객체를 담습니다.
   const customPool = [];
   const defaultPool = [];
 
-  // 1. 커스텀 카드 수집
+  // 1. 커스텀 카드 수집 (게임 전체에서 한 번만 사용, 중복 작성하면 여러 장)
   for (const sid of ids) {
     const p = room.players[sid];
-    // 플레이어가 낸 카드 3장을 순회
     (p.prompts || []).forEach((textRaw, index) => {
       const text = String(textRaw ?? "").trim();
       if (!text) return;
 
       // 카드 고유 ID 생성 (누가 냈는지 + 몇 번째 카드인지)
-      // 예: "socketId12345_0"
+      // 같은 텍스트여도 다른 인덱스면 다른 카드로 취급
       const uniqueId = `${sid}_${index}`;
-
-      // 텍스트가 같아도 ID가 다르면 다른 카드로 취급
-      // 이미 사용된 '특정 카드'만 제외
-      if (usedPromptSet.has(uniqueId)) return;
+      if (usedCustomPromptSet.has(uniqueId)) return;
 
       customPool.push({ id: uniqueId, text: text, type: 'custom' });
     });
   }
 
-  // 2. 기본 카드 수집
-  // 기본 카드는 무한정 쓸 수 있게 할지, 한 번만 쓸지 정책에 따라 다르지만
-  // 여기서는 "기본 카드도 텍스트 기준으로 한 게임에 한 번만 등장" 하도록 유지하거나,
-  // "매 라운드 리필" 되도록 할 수 있습니다. 
-  // 기존 로직(텍스트 기준 중복 제거)을 유지하되 객체 형태로 변환합니다.
+  // 2. 기본 카드 수집 (매 라운드 리필 - 한 라운드 내에서만 중복 방지)
   for (const base of DEFAULT_PROMPTS) {
     const text = String(base ?? "").trim();
     if (!text) continue;
     
-    // 기본 카드는 ID를 "default_단어"로 설정 (즉, 기본 카드는 여전히 중복 텍스트 방지됨)
     const uniqueId = `default_${text}`;
-    
-    if (usedPromptSet.has(uniqueId)) continue;
-    
     defaultPool.push({ id: uniqueId, text: text, type: 'default' });
   }
 
@@ -222,65 +210,53 @@ function assignPrompts(room) {
   shuffle(customPool);
   shuffle(defaultPool);
 
-  // 유틸: 풀에서 카드 객체 하나 뽑기
-  function drawFrom(pool) {
-    if (!pool || pool.length === 0) return null;
-    return pool.shift(); 
-  }
+  // 디버깅: 커스텀 풀 상태 확인
+  console.log(
+    `[assignPrompts] 라운드 ${room.game.round}, 커스텀풀 크기: ${customPool.length}, 내용:`,
+    customPool.map(c => `${c.text}(${c.id})`).join(", ")
+  );
 
-  // 유틸: 우선순위 뽑기
-  function drawPrefer(poolA, poolB) {
-    let card = drawFrom(poolA);
-    if (card) return card;
-    return drawFrom(poolB);
-  }
-
-  // 유틸: 둘 다 합쳐서 랜덤 뽑기 (커스텀 가중치)
-  function drawFromBoth() {
-    const customCount = customPool.length;
-    const defaultCount = defaultPool.length;
-    if (customCount + defaultCount === 0) return null;
-
-    const r = Math.random();
-    if (customCount > 0 && defaultCount > 0) {
-      if (r < 0.7) return drawFrom(customPool);
-      else return drawFrom(defaultPool);
-    } else if (customCount > 0) {
-      return drawFrom(customPool);
-    } else {
-      return drawFrom(defaultPool);
-    }
-  }
-
+  // ----- 전략: 커스텀 카드를 최대한 분배, 부족하면 기본으로 채우기 -----
+  // 목표: 커스텀 카드 최우선으로 전부 분배하고, 필요하면 기본 카드로 채우기
+  
+  console.log(`[assignPrompts 시작] 커스텀풀: ${customPool.length}, 기본풀: ${defaultPool.length}`);
+  
   // 각 플레이어에게 분배
-  for (const sid of ids) {
-    const sliceObjs = []; // 객체들을 임시로 담을 배열
+  for (let playerIdx = 0; playerIdx < ids.length; playerIdx++) {
+    const sid = ids[playerIdx];
+    const sliceObjs = [];
+    
+    // 1단계: 커스텀 카드를 먼저 2개 분배
+    // 커스텀이 부족하면 일부 플레이어는 2개 못 받을 수 있음
+    for (let i = 0; i < 2 && customPool.length > 0; i++) {
+      sliceObjs.push(customPool.shift());
+    }
+    
+    console.log(`[분배] 플레이어 ${playerIdx}: 커스텀 ${sliceObjs.length}개 받음, 남은 커스텀풀: ${customPool.length}`);
+    
+    // 2단계: 부족한 만큼 기본 카드로 채우기
+    const needed = per - sliceObjs.length;
+    for (let i = 0; i < needed && defaultPool.length > 0; i++) {
+      sliceObjs.push(defaultPool.shift());
+    }
+    
+    console.log(`[분배] 플레이어 ${playerIdx}: 기본 ${needed}개 중 ${sliceObjs.length - (per - needed)}개 받음`);
 
-    // 1. 커스텀 우선
-    let c1 = drawPrefer(customPool, defaultPool);
-    if (c1) sliceObjs.push(c1);
-
-    // 2. 기본 우선
-    let c2 = drawPrefer(defaultPool, customPool);
-    if (c2) sliceObjs.push(c2);
-
-    // 3. 랜덤
-    let c3 = drawFromBoth();
-    if (c3) sliceObjs.push(c3);
-
-    // 실제 데이터 처리는 여기서 확정
+    // 3단계: 실제 데이터 처리
     const finalPrompts = [];
     for (const card of sliceObjs) {
-      // 1) 사용된 카드 ID 기록 (재등장 방지)
-      usedPromptSet.add(card.id);
-      // 2) 플레이어에게는 텍스트만 전달
+      // 커스텀 카드는 게임 전체에서 사용됨 표시
+      if (card.type === 'custom') {
+        usedCustomPromptSet.add(card.id);
+      }
+      // 플레이어에게는 텍스트만 전달
       finalPrompts.push(card.text);
     }
 
     // 경고 로그
     if (finalPrompts.length < per) {
       console.warn(
-        `[assignPrompts] 플레이어 ${sid}에게 제시어 ${finalPrompts.length}개만 할당됨`
+        `[assignPrompts] 플레이어 ${playerIdx}(${sid})에게 제시어 ${finalPrompts.length}개만 할당됨 (라운드 ${room.game.round}, 인원 ${ids.length}, 커스텀남음 ${customPool.length}, 기본남음 ${defaultPool.length})`
       );
     }
 
@@ -325,8 +301,10 @@ function startRound(roomId) {
   if (room.phase !== "story") return;
   if (!room.game) return;
 
-  // 라운드 시작 시마다 새로운 제시어 뽑기
-  assignPrompts(room);
+  // 라운드 1부터 제시어 분배 (라운드 0에는 분배 안 함)
+  if (room.game.round > 0) {
+    assignPrompts(room);
+  }
 
   const order = room.game.turnOrder;
   const round = room.game.round;
@@ -365,6 +343,47 @@ function startRound(roomId) {
   }
 
   emitRoomState(room.roomId);
+
+  // 타이머 시작 (20초)
+  const TIMER_DURATION = 20;
+  let secondsLeft = TIMER_DURATION;
+
+  // 기존 타이머가 있으면 정리
+  if (room.game.timerInterval) {
+    clearInterval(room.game.timerInterval);
+  }
+
+  // 타이머 매 초마다 실행
+  room.game.timerInterval = setInterval(() => {
+    secondsLeft--;
+
+    // 모든 플레이어에게 타이머 정보 전송
+    io.to(roomId).emit("story:timer", {
+      secondsLeft: Math.max(0, secondsLeft),
+    });
+
+    // 타이머 종료 시
+    if (secondsLeft <= 0) {
+      clearInterval(room.game.timerInterval);
+      room.game.timerInterval = null;
+
+      // 다음 라운드로 진행
+      const currentRoom = getRoom(roomId);
+      if (currentRoom && currentRoom.phase === "story") {
+        const nextRound = currentRoom.game.round + 1;
+        if (nextRound >= currentRoom.game.totalRounds) {
+          currentRoom.phase = "result";
+          emitRoomState(roomId);
+
+          const payload = buildResultPayload(currentRoom);
+          io.to(roomId).emit("game:result", payload);
+        } else {
+          currentRoom.game.round = nextRound;
+          startRound(roomId);
+        }
+      }
+    }
+  }, 1000);
 }
 
 // 결과 정리
@@ -397,6 +416,12 @@ function buildResultPayload(room) {
 function abortGame(roomId, reason) {
   const room = getRoom(roomId);
   if (!room) return;
+
+  // 타이머 정리
+  if (room.game && room.game.timerInterval) {
+    clearInterval(room.game.timerInterval);
+    room.game.timerInterval = null;
+  }
 
   if (room.phase !== "lobby") {
     io.to(roomId).emit("game:aborted", { reason });

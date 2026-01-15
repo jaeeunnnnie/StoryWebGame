@@ -46,6 +46,7 @@ const storySoFar = $("story-so-far");
 const inputStoryText = $("input-story-text");
 const btnSubmitStory = $("btn-submit-story");
 const storyWaitMsg = $("story-wait-msg");
+const displayTimer = $("display-timer");
 
 // results
 const finalResults = $("final-results");
@@ -255,6 +256,12 @@ socket.on("story:round", (payload) => {
   if (storyWaitMsg) storyWaitMsg.classList.add("hidden");
 
   showScreen(screenStory);
+});
+
+socket.on("story:timer", ({ secondsLeft }) => {
+  if (displayTimer) {
+    displayTimer.textContent = `${secondsLeft}s`;
+  }
 });
 
 socket.on("game:result", (payload) => {
