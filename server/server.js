@@ -376,8 +376,9 @@ function startRound(roomId) {
   if (room.phase !== "story") return;
   if (!room.game) return;
 
-  // 라운드 시작 시마다 새로운 제시어 뽑기
-  assignPrompts(room);
+  if (room.game.round > 0) {
+    assignPrompts(room);
+  }
 
   const order = room.game.turnOrder;
   const round = room.game.round;
