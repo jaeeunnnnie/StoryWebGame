@@ -429,6 +429,10 @@ function startRound(roomId) {
 
   room.game.submittedStory[round] = new Set();
 
+  // 작성 상태 초기화
+  room.writingStatus = {};
+  io.to(roomId).emit("story:writingStatus", { writingStatus: {} });
+
   for (const sid of order) {
     const chainId = computeChainForPlayer(room, sid);
     if (!chainId) continue;
@@ -826,25 +830,8 @@ io.on("connection", (socket) => {
       const p = room.players[socket.id];
       if (!p) return ack?.({ ok: false, error: "PLAYER_NOT_FOUND" });
 
-      const t = String(text ?? "").trim();
-
-      if (!t) return ack?.({ ok: false, error: "TEXT_REQUIRED" });
-      if (room.game.round > 0) {
-        const normalize = (s) => String(s || "").replace(/\s+/g, "");
-        const submittedText = normalize(t);
-
-        const cards = room.game.inboxPromptCards?.[socket.id] || [];
-        for (const card of cards) {
-          if (!card || card.type !== "custom") continue;
-
-          const key = normalize(card.text);
-          const used = key && submittedText.includes(key);
-
-          if (used) {
-            room.game.usedCustomPromptSet.add(card.id);
-          }
-        }
-      }
+      let finalText = String(text ?? "").trim();
+      if (!finalText) return ack?.({ ok: false, error: "TEXT_REQUIRED" });
 
       const round = room.game.round;
       const chainId = room.game.chainForPlayer[socket.id];
@@ -853,7 +840,6 @@ io.on("connection", (socket) => {
       const set = room.game.submittedStory[round];
       if (!set) room.game.submittedStory[round] = new Set();
 
-      // 중복 제출 방지
       if (room.game.submittedStory[round].has(socket.id)) {
         return ack?.({ ok: false, error: "ALREADY_SUBMITTED" });
       }
@@ -861,17 +847,42 @@ io.on("connection", (socket) => {
       const chain = room.game.storyChains[chainId];
       if (!chain) return ack?.({ ok: false, error: "CHAIN_NOT_FOUND" });
 
-      const usedKeywords = getUsedKeywordsFromCards(t, room.game.inboxPromptCards?.[socket.id] || []);
+      const playerCards = room.game.inboxPromptCards?.[socket.id] || [];
+      let usedKeywords = getUsedKeywordsFromCards(finalText, playerCards);
+
+      if (round > 0 && usedKeywords.length === 0 && playerCards.length > 0) {
+        const randomCard = playerCards[Math.floor(Math.random() * playerCards.length)];
+        if (randomCard && randomCard.text) {
+          finalText += ` ${randomCard.text}`; // 띄어쓰기 후 키워드 추가
+          usedKeywords = getUsedKeywordsFromCards(finalText, playerCards);
+        }
+      }
+
+      // 사용된 '커스텀' 카드 ID를 usedCustomPromptSet에 기록
+      if (round > 0) {
+        const usedKeywordTexts = new Set(usedKeywords);
+        for (const card of playerCards) {
+          if (card.type === 'custom' && usedKeywordTexts.has(card.text)) {
+            room.game.usedCustomPromptSet.add(card.id);
+          }
+        }
+      }
 
       chain.entries.push({
         round,
         writerId: socket.id,
-        text: t,
+        text: finalText,
         usedKeywords,
       });
 
       room.game.submittedStory[round].add(socket.id);
       p.submitted.story = true;
+
+      // 작성 상태 해제
+      if (room.writingStatus) {
+        room.writingStatus[socket.id] = false;
+        io.to(rid).emit("story:writingStatus", { writingStatus: room.writingStatus });
+      }
 
       emitRoomState(rid);
       ack?.({ ok: true });
@@ -907,7 +918,7 @@ io.on("connection", (socket) => {
 
 // ------------------------------------------------------------
   // 결과 화면 네비게이션 (방장만 조작, 모두에게 동기화)
-  socket.on("result:navigate", ({ chainIndex, entryIndex }, ack) => {
+  socket.on("result:navigate", ({ chainIndex }, ack) => {
     try {
       const rid = socket.data.roomId;
       const room = rid ? rooms[rid] : null;
@@ -915,8 +926,8 @@ io.on("connection", (socket) => {
       if (room.phase !== "result") return ack?.({ ok: false, error: "NOT_RESULT_PHASE" });
       if (socket.id !== room.hostId) return ack?.({ ok: false, error: "NOT_HOST" });
 
-      // 모든 플레이어에게 현재 위치 브로드캐스트
-      io.to(rid).emit("result:sync", { chainIndex, entryIndex });
+      // 모든 플레이어에게 현재 스토리 인덱스 브로드캐스트
+      io.to(rid).emit("result:sync", { chainIndex });
       ack?.({ ok: true });
     } catch (e) {
       console.error(e);
@@ -952,6 +963,54 @@ io.on("connection", (socket) => {
       // 모든 플레이어에게 로비 복귀 알림
       io.to(rid).emit("game:restarted");
       emitRoomState(rid);
+
+      ack?.({ ok: true });
+    } catch (e) {
+      console.error(e);
+      ack?.({ ok: false, error: "SERVER_ERROR" });
+    }
+  });
+
+  // ------------------------------------------------------------
+  // 스토리 작성 중 상태 업데이트
+  socket.on("story:writing", ({ writing }, ack) => {
+    try {
+      const rid = socket.data.roomId;
+      const room = rid ? rooms[rid] : null;
+      if (!room) return ack?.({ ok: false, error: "ROOM_NOT_FOUND" });
+      if (room.phase !== "story") return ack?.({ ok: false, error: "NOT_STORY_PHASE" });
+
+      // 작성 상태 저장
+      if (!room.writingStatus) room.writingStatus = {};
+      room.writingStatus[socket.id] = writing;
+
+      // 모든 플레이어에게 작성 상태 브로드캐스트
+      io.to(rid).emit("story:writingStatus", { writingStatus: room.writingStatus });
+
+      ack?.({ ok: true });
+    } catch (e) {
+      console.error(e);
+      ack?.({ ok: false, error: "SERVER_ERROR" });
+    }
+  });
+
+  // ------------------------------------------------------------
+  // 이모티콘 전송
+  socket.on("emoji:send", ({ emojiId }, ack) => {
+    try {
+      const rid = socket.data.roomId;
+      const room = rid ? rooms[rid] : null;
+      if (!room) return ack?.({ ok: false, error: "ROOM_NOT_FOUND" });
+
+      const player = room.players[socket.id];
+      if (!player) return ack?.({ ok: false, error: "PLAYER_NOT_FOUND" });
+
+      // 모든 플레이어에게 이모티콘 브로드캐스트
+      io.to(rid).emit("emoji:received", {
+        senderId: socket.id,
+        senderName: player.name,
+        emojiId,
+      });
 
       ack?.({ ok: true });
     } catch (e) {
