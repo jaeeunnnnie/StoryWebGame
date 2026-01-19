@@ -167,6 +167,11 @@ button:disabled {
   font-weight: bold;
 }
 
+.result-item.used {
+  opacity: 0.35;
+  text-decoration: line-through;
+}
+
 /* --------------------
    Wait Messages
 -------------------- */

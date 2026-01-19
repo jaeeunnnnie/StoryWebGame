@@ -119,6 +119,7 @@ function ensureGame(room) {
       usedCustomPromptSet: new Set(), // 커스텀 카드(플레이어 입력) 고유ID: sid_index
       usedDefaultPromptSet: new Set(), // 기본 카드 고유ID: default_text
       timerInterval: null, // 타이머 interval ID
+      inboxPromptCards: {}, // sid -> 이번 라운드에 받은 카드 객체들(판정용)
     };
   }
 }
@@ -139,6 +140,7 @@ function resetForNewGame(room) {
   room.game.storyChains = {};
   room.game.chainForPlayer = {};
   room.game.submittedStory = {};
+  room.game.inboxPromptCards = {};
 
   room.game.usedCustomPromptSet = new Set(); // 커스텀 카드만 게임 전체에서 추적
   room.game.usedDefaultPromptSet = new Set(); // 기본 카드는 매 라운드 리필
@@ -180,27 +182,52 @@ function allPromptsSubmitted(room) {
 // ====================================================================
 // 호칭 카드 생성
 // - 일단 카드 구성 확인할라고: 기본1 + 커스텀1 + 이름1 로 해놨슈
-// - 이/는/의...
+
+// 한글 받침(종성) 유무 체크
+function hasFinalConsonant(koreanWord) {
+  const s = String(koreanWord ?? "").trim();
+  if (!s) return false;
+
+  const ch = s[s.length - 1];
+  const code = ch.charCodeAt(0);
+
+  // 한글 음절 범위: AC00(가) ~ D7A3(힣)
+  if (code < 0xac00 || code > 0xd7a3) return false;
+
+  const offset = code - 0xac00;
+  const jong = offset % 28;
+  return jong !== 0;
+}
+
+// 받침 여부에 따라 조사 선택해서 붙이기
+function josa(word, withFinal, withoutFinal) {
+  const base = String(word ?? "").trim();
+  if (!base) return "";
+  return base + (hasFinalConsonant(base) ? withFinal : withoutFinal);
+}
+
+// 호칭 카드 텍스트 생성
 function buildNameCards(displayName) {
   const base = String(displayName ?? "").trim();
   if (!base) return [];
 
   return [
-    `${base}(이)가`,
-    `${base}(이)는`,
-    `${base}(이)의`,
-    `${base}에게`,
-    `${base}(이)랑`,
-    `${base}(이)만의`,
-    `${base}(이) 때문에`,
-    `${base}(이)보다`,
-    `${base}(이)마저`,
-    `${base}(이) 말에 따르면`,
+    josa(base, "이", "가"),   
+    josa(base, "은", "는"), 
+    josa(base, "의", "의"),    
+    josa(base, "에게", "에게"), 
+    josa(base, "이랑", "랑"), 
+    josa(base, "이만의", "만의"), 
+    josa(base, "이 때문에", " 때문에"),
+    josa(base, "이보다", "보다"),
+    josa(base, "이마저", "마저"),
+    josa(base, "이 말에 따르면", "말에 따르면"),       
     `킹 갓 제너럴 ${base}`,
     `사랑에 빠진 ${base}`,
     `똥 씹은 표정을 하는 ${base}`,
   ];
 }
+
 
 // 방의 모든 플레이어 이름으로 호칭카드 만들기
 function collectNameCardPool(room) {
@@ -295,7 +322,7 @@ function assignPrompts(room) {
     // 커스텀 1 (없으면 기본으로 대체)
     const c = customPool.shift();
     if (c) {
-      usedCustom.add(c.id); // MVP: "분배되면 소진" (사용 여부 판정은 다음 단계)
+    // 제출 문장에 실제로 사용했을 때만 소진 처리
       picked.push(c);
     } else {
       const d2 = defaultPool.shift();
@@ -308,7 +335,7 @@ function assignPrompts(room) {
     // 이름 1 (없으면 기본으로 대체)
     const n = namePool.shift();
     if (n) {
-      // used 처리 안 함!!!
+      // 제출 문장에 실제로 사용했을 때만 소진 처리
       picked.push(n);
     } else {
       const d3 = defaultPool.shift();
@@ -326,6 +353,9 @@ function assignPrompts(room) {
       picked.push(extra);
     }
 
+    room.game.inboxPromptCards[sid] = picked;
+
+    // 카드 객체를 텍스트로 변환
     const finalPrompts = picked.map((card) => {
       if (card.type === "default") return `기본: ${card.text}`;
       if (card.type === "custom") return `커스텀: ${card.text}`;
@@ -377,6 +407,7 @@ function startRound(roomId) {
   if (!room.game) return;
 
   if (room.game.round > 0) {
+    room.game.usedDefaultPromptSet = new Set(); // 기본카드: 라운드마다 리필(중복 방지용 Set 초기화)
     assignPrompts(room);
   }
 
@@ -423,8 +454,8 @@ function startRound(roomId) {
   emitRoomState(room.roomId);
 
   // ------------------------------------------------------------
-  // 라운드 타이머 (20초)
-  const TIMER_DURATION = 20;
+  // 라운드 타이머
+  const TIMER_DURATION = 30;
   let secondsLeft = TIMER_DURATION;
 
   // 기존 타이머 정리
@@ -711,6 +742,27 @@ io.on("connection", (socket) => {
       if (!p) return ack?.({ ok: false, error: "PLAYER_NOT_FOUND" });
 
       const t = String(text ?? "").trim();
+
+      // -------------------------------
+      // 커스텀 카드 사용 여부 판정(제출 시점)
+      if (room.game.round > 0) {
+        const normalize = (s) => String(s || "").replace(/\s+/g, "");
+        const submittedText = normalize(t);
+
+        const cards = room.game.inboxPromptCards?.[socket.id] || [];
+        for (const card of cards) {
+          if (!card || card.type !== "custom") continue;
+
+          const key = normalize(card.text);
+          const used = key && submittedText.includes(key);
+
+          if (used) {
+            room.game.usedCustomPromptSet.add(card.id);
+          }
+        }
+      }
+
+
       if (!t) return ack?.({ ok: false, error: "TEXT_REQUIRED" });
 
       const round = room.game.round;

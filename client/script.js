@@ -68,6 +68,25 @@ function alertError(msg) {
   alert(msg);
 }
 
+// 제시어 사용 현황 UI 갱신
+function updatePromptUsageUI() {
+  if (!inputStoryText || !myInboxPrompts) return;
+
+  const textRaw = String(inputStoryText.value || "");
+  const text = textRaw.replace(/\s+/g, ""); // 공백 제거
+
+  const chips = Array.from(myInboxPrompts.querySelectorAll(".result-item"));
+  for (const chip of chips) {
+    const keyRaw = String(chip.dataset.prompt || "");
+    const key = keyRaw.replace(/\s+/g, ""); // 공백 제거
+    if (!key) continue;
+
+    const used = text.includes(key);
+    chip.classList.toggle("used", used);
+  }
+}
+
+
 // 닉네임을 매번 안전하게 확보 (버튼 누르는 순간 읽어서 myName 갱신)
 function ensureName() {
   const trimmed = String(nicknameInput?.value || "").trim();
@@ -100,9 +119,19 @@ function renderPromptChips(container, items) {
     const chip = document.createElement("div");
     chip.className = "result-item";
     chip.textContent = t;
+    chip.dataset.prompt = normalizePromptText(t);
     container.appendChild(chip);
   }
 }
+
+// 제시어 텍스트 비교용 (앞부분 라벨 제거)
+function normalizePromptText(labelText) {
+  const s = String(labelText ?? "").trim();
+  const idx = s.indexOf(":");
+  if (idx === -1) return s;
+  return s.slice(idx + 1).trim();
+}
+
 
 function renderStorySoFar(entries, round) {
   if (!storySoFar) return;
@@ -251,8 +280,14 @@ socket.on("story:round", (payload) => {
     renderStorySoFar(payload.chainEntries || [], currentRound);
   }
 
+  // 입력란 초기화
   if (inputStoryText) inputStoryText.value = "";
+  // 제시어 사용 현황 UI 갱신
+  updatePromptUsageUI();
+
+  // 버튼/메시지 초기화
   if (btnSubmitStory) btnSubmitStory.disabled = false;
+  // 대기 메시지 숨기기
   if (storyWaitMsg) storyWaitMsg.classList.add("hidden");
 
   showScreen(screenStory);
@@ -277,6 +312,12 @@ socket.on("game:result", (payload) => {
  // showScreen(screenWaiting);
  // setTimeout(() => roomCodeInput?.focus(), 0);
 //});
+
+// 스토리 입력란 변화 감지: 제시어 사용 현황 UI 갱신
+inputStoryText?.addEventListener("input", () => {
+  updatePromptUsageUI();
+});
+
 
 // 방 만들기: 닉네임 확인 후 바로 생성
 btnCreateRoom?.addEventListener("click", () => {
@@ -327,12 +368,39 @@ btnLeave?.addEventListener("click", () => {
   });
 });
 
+// 게임 시작
 btnStart?.addEventListener("click", () => {
   socket.emit("game:start", {}, (res) => {
     if (!res?.ok) return alertError(`시작 실패: ${res?.error || "UNKNOWN"}`);
   });
 });
 
+// 방 코드 복사
+btnCopy?.addEventListener("click", async () => {
+  const roomId = currentRoomState?.roomId;
+  if (!roomId) return alertError("복사할 방 코드가 없어!");
+
+  const text = String(roomId);
+
+  try {
+    await navigator.clipboard.writeText(text);
+    alert(`방 코드 복사됨: ${text}`);
+  } catch (e) {
+    // fallback (권한/https 이슈 대비)
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+
+    alert(`방 코드 복사됨: ${text}`);
+  }
+});
+
+// 제시어 제출
 btnSubmitPrompts?.addEventListener("click", () => {
   const inputs = Array.from(document.querySelectorAll(".input-prompt"));
   const prompts = inputs.map((el) => String(el.value || "").trim()).filter(Boolean);
