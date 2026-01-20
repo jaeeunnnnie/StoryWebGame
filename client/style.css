@@ -13,6 +13,11 @@ body {
   margin: 0;
   font-family: 'Arial', sans-serif;
   background-color: var(--bg-color);
+  background-image: url('./image/bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--text-white);
   display: flex;
   justify-content: center;
@@ -84,7 +89,103 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Entry */
+/* --------------------
+   Entry Screen (입장 화면)
+-------------------- */
+.entry-container {
+  background: var(--card-bg);
+  padding: 2rem;
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+  text-align: center;
+  min-width: 600px;
+}
+
+.entry-title {
+  margin-bottom: 1.5rem;
+  font-size: 2rem;
+}
+
+.entry-content {
+  display: flex;
+  gap: 40px;
+  align-items: stretch;
+}
+
+.entry-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  padding-right: 30px;
+  border-right: 2px solid #475569;
+}
+
+.entry-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+}
+
+.avatar-preview-container {
+  text-align: center;
+}
+
+.avatar-preview {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  margin: 10px auto;
+  border: 4px solid var(--accent-yellow);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+  overflow: hidden;
+}
+
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-preview:empty::after {
+  content: "?";
+  color: #94a3b8;
+  font-size: 3rem;
+}
+
+.nickname-section {
+  text-align: left;
+}
+
+.nickname-section input {
+  margin-bottom: 0;
+}
+
+.entry-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#btn-create-room {
+  background: var(--accent-yellow);
+  color: #000;
+}
+
+#btn-join-room {
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+/* Entry (legacy) */
 #btn-create {
   background: var(--accent-yellow);
   color: #000;
@@ -131,8 +232,78 @@ button:disabled {
 }
 
 /* --------------------
-   Prompts
+   Prompts (새로운 카드 디자인)
 -------------------- */
+.prompt-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.note-background {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 50px;
+  background-image: url('./image/note.png');
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-width: 700px;
+  min-height: 300px;
+}
+
+.keyword-cards-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 30px;
+}
+
+.keyword-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.keyword-card img {
+  width: 180px;
+  height: auto;
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.2));
+}
+
+.keyword-card input {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 130px;
+  padding: 12px 8px;
+  margin: 0;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: bold;
+  background: transparent;
+  color: #1e293b;
+  border: none;
+  border-bottom: 2px dashed #94a3b8;
+}
+
+.keyword-card input::placeholder {
+  color: #94a3b8;
+  font-weight: normal;
+  font-style: italic;
+}
+
+.keyword-card input:focus {
+  outline: none;
+  border-bottom: 2px solid var(--accent-blue);
+}
+
 .prompt-inputs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -325,6 +496,166 @@ button:disabled {
   text-decoration: underline;
 }
 
+/* --------------------
+   Story Layout (게임 진행 화면 레이아웃)
+-------------------- */
+.story-layout {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 1200px;
+}
+
+.story-main {
+  flex: 1;
+  max-width: 650px;
+}
+
+/* 플레이어 사이드바 */
+.player-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-width: 120px;
+  padding: 10px;
+}
+
+.player-sidebar-left {
+  align-items: flex-end;
+}
+
+.player-sidebar-right {
+  align-items: flex-start;
+}
+
+/* 사이드바 플레이어 카드 */
+.sidebar-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: var(--card-bg);
+  border-radius: 15px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  position: relative;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.sidebar-player:hover {
+  transform: scale(1.05);
+}
+
+.sidebar-player .player-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  border: 3px solid #475569;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+
+.sidebar-player .player-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sidebar-player .player-name {
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-align: center;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-player .player-status {
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: #475569;
+}
+
+/* 상태별 스타일 */
+.sidebar-player.writing .player-avatar {
+  border-color: #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+}
+
+.sidebar-player.writing .player-status {
+  background: #fbbf24;
+  color: #000;
+  animation: pulse 1s infinite;
+}
+
+.sidebar-player.done .player-avatar {
+  border-color: #34d399;
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.5);
+}
+
+.sidebar-player.done .player-status {
+  background: #34d399;
+  color: #000;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* 사이드바 플레이어 옆 이모티콘 */
+.sidebar-player .player-emoji {
+  position: absolute;
+  top: -10px;
+  font-size: 2rem;
+  animation: emojiPopSide 2.5s ease-out forwards;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.player-sidebar-left .sidebar-player .player-emoji {
+  right: -40px;
+}
+
+.player-sidebar-right .sidebar-player .player-emoji {
+  left: -40px;
+}
+
+.sidebar-player .player-emoji img {
+  width: 40px;
+  height: 40px;
+}
+
+@keyframes emojiPopSide {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(10px);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1.2) translateY(0);
+  }
+  30% {
+    transform: scale(1) translateY(-5px);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(1) translateY(-30px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(-50px);
+  }
+}
 
 /* --------------------
    Player Status (작성 상태 표시)

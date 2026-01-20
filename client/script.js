@@ -59,6 +59,10 @@ const btnScreenshot = $("btn-screenshot");
 // player status (작성 상태)
 const playerStatusList = $("player-status-list");
 
+// player sidebar (양쪽 플레이어 사이드바)
+const playersLeft = $("players-left");
+const playersRight = $("players-right");
+
 // emoji (이모티콘)
 const btnEmojiToggle = $("btn-emoji-toggle");
 const emojiPicker = $("emoji-picker");
@@ -67,6 +71,7 @@ const emojiDisplay = $("emoji-display");
 
 // avatar (아바타)
 const avatarList = $("avatar-list");
+const avatarPreview = $("avatar-preview");
 
 // result emoji (결과 화면 이모티콘)
 const btnResultThumbsup = $("btn-result-thumbsup");
@@ -180,6 +185,105 @@ function renderPlayerStatus(players, writingStatus) {
   });
 }
 
+// 플레이어 사이드바 렌더링 (양쪽에 배치)
+function renderPlayerSidebars(players, writingStatus) {
+  if (!playersLeft || !playersRight) return;
+
+  playersLeft.innerHTML = "";
+  playersRight.innerHTML = "";
+
+  const playerArray = players || [];
+  const totalPlayers = playerArray.length;
+
+  // 홀수면 왼쪽이 하나 더 많게
+  const leftCount = Math.ceil(totalPlayers / 2);
+
+  playerArray.forEach((p, index) => {
+    const playerDiv = createSidebarPlayer(p, writingStatus);
+
+    if (index < leftCount) {
+      playersLeft.appendChild(playerDiv);
+    } else {
+      playersRight.appendChild(playerDiv);
+    }
+  });
+}
+
+// 사이드바 플레이어 요소 생성
+function createSidebarPlayer(player, writingStatus) {
+  const isDone = player.submitted?.story === true;
+  const isWritingNow = writingStatus?.[player.id] === true;
+
+  const div = document.createElement("div");
+  div.className = `sidebar-player ${isDone ? "done" : (isWritingNow ? "writing" : "")}`;
+  div.dataset.playerId = player.id;
+
+  // 아바타
+  const avatarDiv = document.createElement("div");
+  avatarDiv.className = "player-avatar";
+  const avatarData = getAvatarById(player.avatar);
+  if (avatarData) {
+    if (avatarData.type === "image") {
+      avatarDiv.innerHTML = `<img src="${avatarData.content}" alt="${player.name}">`;
+    } else {
+      avatarDiv.textContent = avatarData.content;
+    }
+  } else {
+    avatarDiv.textContent = "👤";
+  }
+
+  // 이름
+  const nameDiv = document.createElement("div");
+  nameDiv.className = "player-name";
+  nameDiv.textContent = player.name;
+
+  // 상태
+  const statusDiv = document.createElement("div");
+  statusDiv.className = "player-status";
+  if (isDone) {
+    statusDiv.textContent = "완료 ✓";
+  } else if (isWritingNow) {
+    statusDiv.textContent = "작성중...";
+  } else {
+    statusDiv.textContent = "대기";
+  }
+
+  div.appendChild(avatarDiv);
+  div.appendChild(nameDiv);
+  div.appendChild(statusDiv);
+
+  return div;
+}
+
+// 사이드바 플레이어 상태만 업데이트 (다시 렌더링하지 않고)
+function updateSidebarPlayerStatus(players, writingStatus) {
+  if (!playersLeft || !playersRight) return;
+
+  (players || []).forEach((p) => {
+    const isDone = p.submitted?.story === true;
+    const isWritingNow = writingStatus?.[p.id] === true;
+
+    // 왼쪽, 오른쪽 모두에서 찾기
+    const playerDiv = playersLeft.querySelector(`[data-player-id="${p.id}"]`) ||
+                      playersRight.querySelector(`[data-player-id="${p.id}"]`);
+
+    if (playerDiv) {
+      playerDiv.className = `sidebar-player ${isDone ? "done" : (isWritingNow ? "writing" : "")}`;
+
+      const statusDiv = playerDiv.querySelector(".player-status");
+      if (statusDiv) {
+        if (isDone) {
+          statusDiv.textContent = "완료 ✓";
+        } else if (isWritingNow) {
+          statusDiv.textContent = "작성중...";
+        } else {
+          statusDiv.textContent = "대기";
+        }
+      }
+    }
+  });
+}
+
 // ---- 아바타 관련 ----
 // 아바타 목록 (나중에 커스텀 이미지로 교체 가능)
 // type: "emoji" = 기본 이모지, "image" = 커스텀 이미지 (경로)
@@ -233,11 +337,23 @@ function renderAvatarList() {
 function selectAvatar(avatarId) {
   myAvatar = avatarId;
 
-  // UI 업데이트
+  // UI 업데이트 - 선택 표시
   const items = avatarList?.querySelectorAll(".avatar-item");
   items?.forEach((item) => {
     item.classList.toggle("selected", item.dataset.avatarId === avatarId);
   });
+
+  // 미리보기 업데이트
+  if (avatarPreview) {
+    const avatar = getAvatarById(avatarId);
+    if (avatar) {
+      if (avatar.type === "image") {
+        avatarPreview.innerHTML = `<img src="${avatar.content}" alt="${avatar.id}">`;
+      } else {
+        avatarPreview.textContent = avatar.content;
+      }
+    }
+  }
 }
 
 // 아바타 ID로 아바타 객체 찾기
@@ -309,40 +425,64 @@ function sendEmoji(emojiId) {
   socket.emit("emoji:send", { emojiId });
 }
 
-// 받은 이모티콘 표시
-function displayReceivedEmoji(senderName, emojiId) {
-  if (!emojiDisplay) return;
-
+// 받은 이모티콘 표시 (플레이어 아바타 옆에 표시)
+function displayReceivedEmoji(senderId, senderName, emojiId) {
   const emoji = EMOJI_LIST.find(e => e.id === emojiId);
   if (!emoji) return;
 
-  const container = document.createElement("div");
-  container.className = "emoji-floating";
+  // 사이드바에서 해당 플레이어 찾기
+  const playerDiv = playersLeft?.querySelector(`[data-player-id="${senderId}"]`) ||
+                    playersRight?.querySelector(`[data-player-id="${senderId}"]`);
 
-  const iconDiv = document.createElement("div");
-  iconDiv.className = "emoji-icon";
+  if (playerDiv) {
+    // 플레이어 아바타 옆에 이모티콘 표시
+    const emojiEl = document.createElement("div");
+    emojiEl.className = "player-emoji";
 
-  if (emoji.type === "image") {
-    const img = document.createElement("img");
-    img.src = emoji.content;
-    img.alt = emojiId;
-    iconDiv.appendChild(img);
+    if (emoji.type === "image") {
+      emojiEl.innerHTML = `<img src="${emoji.content}" alt="${emojiId}">`;
+    } else {
+      emojiEl.textContent = emoji.content;
+    }
+
+    playerDiv.appendChild(emojiEl);
+
+    // 2.5초 후 제거 (애니메이션 완료 후)
+    setTimeout(() => {
+      emojiEl.remove();
+    }, 2500);
   } else {
-    iconDiv.textContent = emoji.content;
+    // 사이드바에 플레이어가 없으면 기존 방식으로 표시
+    if (!emojiDisplay) return;
+
+    const container = document.createElement("div");
+    container.className = "emoji-floating";
+
+    const iconDiv = document.createElement("div");
+    iconDiv.className = "emoji-icon";
+
+    if (emoji.type === "image") {
+      const img = document.createElement("img");
+      img.src = emoji.content;
+      img.alt = emojiId;
+      iconDiv.appendChild(img);
+    } else {
+      iconDiv.textContent = emoji.content;
+    }
+
+    const senderDiv = document.createElement("div");
+    senderDiv.className = "emoji-sender";
+    senderDiv.textContent = senderName;
+
+    container.appendChild(iconDiv);
+    container.appendChild(senderDiv);
+    emojiDisplay.appendChild(container);
+
+    // 3초 후 제거
+    setTimeout(() => {
+      container.remove();
+    }, 3000);
   }
-
-  const senderDiv = document.createElement("div");
-  senderDiv.className = "emoji-sender";
-  senderDiv.textContent = senderName;
-
-  container.appendChild(iconDiv);
-  container.appendChild(senderDiv);
-  emojiDisplay.appendChild(container);
-
-  // 3초 후 제거
-  setTimeout(() => {
-    container.remove();
-  }, 3000);
 }
 
 // ---- 결과 화면 이모티콘 애니메이션 ----
@@ -899,9 +1039,10 @@ socket.on("story:round", (payload) => {
   isWriting = false;
   if (writingTimeout) clearTimeout(writingTimeout);
 
-  // 플레이어 상태 초기 렌더링
+  // 플레이어 상태 초기 렌더링 (사이드바)
   if (currentRoomState && currentRoomState.players) {
     renderPlayerStatus(currentRoomState.players, {});
+    renderPlayerSidebars(currentRoomState.players, {});
   }
 
   showScreen(screenStory);
@@ -932,13 +1073,14 @@ socket.on("game:restarted", () => {
 socket.on("story:writingStatus", ({ writingStatus }) => {
   if (currentRoomState && currentRoomState.players) {
     renderPlayerStatus(currentRoomState.players, writingStatus);
+    updateSidebarPlayerStatus(currentRoomState.players, writingStatus);
   }
 });
 
 // 이모티콘 수신
-socket.on("emoji:received", ({ senderName, emojiId }) => {
+socket.on("emoji:received", ({ senderId, senderName, emojiId }) => {
   console.log("✨ 이모티콘 수신:", senderName, emojiId);
-  displayReceivedEmoji(senderName, emojiId);
+  displayReceivedEmoji(senderId, senderName, emojiId);
 });
 
 // 결과 화면 이모티콘 수신
