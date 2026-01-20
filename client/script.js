@@ -97,6 +97,21 @@ let displayedEntryCount = 0;   // 현재 표시된 문장 수
 let ttsEnabled = true;       // TTS 활성화 여부
 let currentUtterance = null; // 현재 재생 중인 TTS
 
+// 닉네임 색상 배열 (다양한 색상으로 구분)
+const NICKNAME_COLORS = [
+  "#f59e0b", // 주황 (기존)
+  "#3b82f6", // 파랑
+  "#10b981", // 초록
+  "#ec4899", // 핑크
+  "#8b5cf6", // 보라
+  "#ef4444", // 빨강
+  "#06b6d4", // 청록
+  "#84cc16", // 연두
+];
+
+// 플레이어 이름 → 색상 매핑 (결과 화면용)
+let playerColorMap = {};
+
 // ---- UI helpers ----
 function showScreen(which) {
   [screenName, screenLobby, screenWaiting, screenPrompts, screenStory, screenResults].forEach((s) =>
@@ -213,6 +228,7 @@ function renderPlayerSidebars(players, writingStatus) {
 function createSidebarPlayer(player, writingStatus) {
   const isDone = player.submitted?.story === true;
   const isWritingNow = writingStatus?.[player.id] === true;
+  const isMe = player.id === socket.id;
 
   const div = document.createElement("div");
   div.className = `sidebar-player ${isDone ? "done" : (isWritingNow ? "writing" : "")}`;
@@ -245,12 +261,32 @@ function createSidebarPlayer(player, writingStatus) {
   } else if (isWritingNow) {
     statusDiv.textContent = "작성중...";
   } else {
-    statusDiv.textContent = "대기";
+    statusDiv.textContent = "생각중...";
   }
 
   div.appendChild(avatarDiv);
   div.appendChild(nameDiv);
   div.appendChild(statusDiv);
+
+  // 본인 아바타 아래에만 이모티콘 버튼 추가
+  if (isMe) {
+    const emojiToggleBtn = document.createElement("button");
+    emojiToggleBtn.className = "sidebar-emoji-toggle";
+    emojiToggleBtn.textContent = "😊";
+    emojiToggleBtn.title = "이모티콘";
+
+    const emojiPickerDiv = document.createElement("div");
+    emojiPickerDiv.className = "sidebar-emoji-picker hidden";
+    renderSidebarEmojiPicker(emojiPickerDiv);
+
+    emojiToggleBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      emojiPickerDiv.classList.toggle("hidden");
+    });
+
+    div.appendChild(emojiToggleBtn);
+    div.appendChild(emojiPickerDiv);
+  }
 
   return div;
 }
@@ -277,7 +313,7 @@ function updateSidebarPlayerStatus(players, writingStatus) {
         } else if (isWritingNow) {
           statusDiv.textContent = "작성중...";
         } else {
-          statusDiv.textContent = "대기";
+          statusDiv.textContent = "생각중...";
         }
       }
     }
@@ -377,7 +413,7 @@ const EMOJI_LIST = [
   // { id: "custom1", type: "image", content: "/images/emoji/custom1.png" },
 ];
 
-// 이모티콘 목록 렌더링
+// 이모티콘 목록 렌더링 (전역 이모지 리스트용 - 기존 호환)
 function renderEmojiList() {
   if (!emojiList) return;
   emojiList.innerHTML = "";
@@ -398,10 +434,39 @@ function renderEmojiList() {
 
     btn.addEventListener("click", () => {
       sendEmoji(emoji.id);
-      toggleEmojiPicker(false);
+      // 이모티콘 전송해도 창 닫지 않음
     });
 
     emojiList.appendChild(btn);
+  }
+}
+
+// 사이드바 이모티콘 피커 렌더링 (본인 아바타 아래용)
+function renderSidebarEmojiPicker(container) {
+  if (!container) return;
+  container.innerHTML = "";
+
+  for (const emoji of EMOJI_LIST) {
+    const btn = document.createElement("button");
+    btn.className = "sidebar-emoji-btn";
+    btn.dataset.emojiId = emoji.id;
+
+    if (emoji.type === "image") {
+      const img = document.createElement("img");
+      img.src = emoji.content;
+      img.alt = emoji.id;
+      btn.appendChild(img);
+    } else {
+      btn.textContent = emoji.content;
+    }
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation(); // 이벤트 버블링 방지
+      sendEmoji(emoji.id);
+      // 이모티콘 전송해도 창 닫지 않음
+    });
+
+    container.appendChild(btn);
   }
 }
 
@@ -507,19 +572,20 @@ function displayResultEmoji(senderName, emojiType) {
 
   // 이모티콘 콘텐츠 결정
   const emojiContent = emojiType === "thumbsup" ? "👍" : "👏";
+  const senderColor = playerColorMap[senderName] || "#fbbf24"; // 이름에 맞는 색상 가져오기
 
   const count = RESULT_EMOJI_CONFIG.count;
 
   for (let i = 0; i < count; i++) {
     // 약간의 시간차를 두고 생성
     setTimeout(() => {
-      createResultEmojiFloat(senderName, emojiContent);
+      createResultEmojiFloat(senderName, emojiContent, senderColor);
     }, i * 80); // 80ms 간격
   }
 }
 
 // 개별 이모티콘 요소 생성
-function createResultEmojiFloat(senderName, emojiContent) {
+function createResultEmojiFloat(senderName, emojiContent, senderColor) {
   const container = document.createElement("div");
   container.className = "result-emoji-float";
 
@@ -555,6 +621,7 @@ function createResultEmojiFloat(senderName, emojiContent) {
   const nameDiv = document.createElement("div");
   nameDiv.className = "emoji-name";
   nameDiv.textContent = senderName;
+  nameDiv.style.color = senderColor; // 이름 색상 적용
 
   container.appendChild(emojiDiv);
   container.appendChild(nameDiv);
@@ -645,10 +712,15 @@ function getKoreanVoice() {
   return null;
 }
 
-function speakText(text) {
-  if (!ttsEnabled || !text) return;
+function speakText(text, onEndCallback) {
+  if (!ttsEnabled || !text) {
+    // TTS 비활성화 또는 텍스트 없으면 바로 콜백 호출
+    if (onEndCallback) onEndCallback();
+    return;
+  }
   if (!window.speechSynthesis) {
     console.warn("이 브라우저는 TTS를 지원하지 않습니다.");
+    if (onEndCallback) onEndCallback();
     return;
   }
 
@@ -667,11 +739,22 @@ function speakText(text) {
     utterance.voice = koreanVoice;
   }
 
+  // TTS 완료 시 콜백 호출
+  if (onEndCallback) {
+    utterance.onend = () => {
+      onEndCallback();
+    };
+    utterance.onerror = () => {
+      onEndCallback();
+    };
+  }
+
   currentUtterance = utterance;
   try {
     window.speechSynthesis.speak(utterance);
   } catch (e) {
     console.error("TTS 재생 중 오류:", e);
+    if (onEndCallback) onEndCallback();
   }
 }
 
@@ -735,7 +818,26 @@ function initResultsPresentation(payload) {
   stopTTS();
   stopChatAnimation();
 
+  // 플레이어별 색상 매핑 생성
+  playerColorMap = {};
   const chains = payload?.chains || [];
+
+  // 모든 작성자 이름 수집 (중복 제거)
+  const allWriters = new Set();
+  for (const chain of chains) {
+    if (chain.ownerName) allWriters.add(chain.ownerName);
+    for (const entry of (chain.entries || [])) {
+      if (entry.writerName) allWriters.add(entry.writerName);
+    }
+  }
+
+  // 각 작성자에게 색상 할당
+  let colorIndex = 0;
+  for (const writerName of allWriters) {
+    playerColorMap[writerName] = NICKNAME_COLORS[colorIndex % NICKNAME_COLORS.length];
+    colorIndex++;
+  }
+
   if (chains.length === 0) {
     if (storyTitle) storyTitle.textContent = "결과가 없어요";
     if (chatContainer) chatContainer.innerHTML = "";
@@ -818,16 +920,46 @@ function showNextChatMessage(entries, index) {
   const messageDiv = document.createElement("div");
   messageDiv.className = "chat-message";
 
+  const writerName = entry.writerName || "알 수 없음";
+
+  // 플레이어 정보 찾기
+  const writer = (currentRoomState?.players || []).find(p => p.name === writerName);
+  const avatarData = writer ? getAvatarById(writer.avatar) : null;
+
+  // 아바타 요소 생성
+  const avatarDiv = document.createElement("div");
+  avatarDiv.className = "chat-avatar";
+  if (avatarData) {
+    if (avatarData.type === "image") {
+      avatarDiv.innerHTML = `<img src="${avatarData.content}" alt="${writerName}">`;
+    } else {
+      avatarDiv.textContent = avatarData.content;
+    }
+  } else {
+    avatarDiv.textContent = "👤";
+  }
+
+  // 이름, 버블 컨테이너
+  const contentDiv = document.createElement("div");
+  contentDiv.className = "chat-content";
+
   const writerDiv = document.createElement("div");
   writerDiv.className = "chat-writer";
-  writerDiv.textContent = entry.writerName || "알 수 없음";
+  writerDiv.textContent = writerName;
+
+  // 플레이어별 고유 색상 적용
+  const writerColor = playerColorMap[writerName] || NICKNAME_COLORS[0];
+  writerDiv.style.color = writerColor;
 
   const bubbleDiv = document.createElement("div");
   bubbleDiv.className = "chat-bubble";
   bubbleDiv.innerHTML = highlightKeywords(entry.text || "", entry.usedKeywords || []);
 
-  messageDiv.appendChild(writerDiv);
-  messageDiv.appendChild(bubbleDiv);
+  contentDiv.appendChild(writerDiv);
+  contentDiv.appendChild(bubbleDiv);
+
+  messageDiv.appendChild(avatarDiv);
+  messageDiv.appendChild(contentDiv);
 
   if (chatContainer) {
     chatContainer.appendChild(messageDiv);
@@ -837,30 +969,31 @@ function showNextChatMessage(entries, index) {
 
   displayedEntryCount = index + 1;
 
-  // TTS로 읽기 (에러 핸들링 포함)
+  // TTS로 읽기 - 완료 후 다음 메시지로 넘어감
   try {
-    speakText(entry.text);
+    speakText(entry.text, () => {
+      // TTS 완료 후 약간의 딜레이 추가 (자연스러운 전환)
+      chatAnimationTimer = setTimeout(() => {
+        if (isLastEntry) {
+          // 마지막 문장이면 버튼 활성화
+          updateResultButtons(false);
+        } else {
+          // 다음 메시지 표시
+          showNextChatMessage(entries, index + 1);
+        }
+      }, 500); // TTS 완료 후 0.5초 딜레이
+    });
   } catch (e) {
     console.error("TTS 재생 중 오류:", e);
-  }
-
-  // 마지막 문장이면 TTS 끝난 후 버튼 활성화만 하고 종료
-  if (isLastEntry) {
-    const textLength = (entry.text || "").length;
-    const delay = Math.max(2000, textLength * 80);
+    // 에러 시에도 다음으로 진행
     chatAnimationTimer = setTimeout(() => {
-      updateResultButtons(false);
-    }, delay);
-    return;
+      if (isLastEntry) {
+        updateResultButtons(false);
+      } else {
+        showNextChatMessage(entries, index + 1);
+      }
+    }, 2000);
   }
-
-  // 다음 메시지 예약 (TTS 읽는 시간 + 여유)
-  const textLength = (entry.text || "").length;
-  const delay = Math.max(2000, textLength * 80); // 글자당 80ms, 최소 2초
-
-  chatAnimationTimer = setTimeout(() => {
-    showNextChatMessage(entries, index + 1);
-  }, delay);
 }
 
 // 버튼 상태 업데이트
@@ -1007,6 +1140,11 @@ socket.on("game:aborted", ({ reason }) => {
 });
 
 socket.on("story:round", (payload) => {
+  // Fix: 라운드 시작 시 모든 플레이어 상태를 즉시 '생각중'으로 업데이트
+  if (currentRoomState && currentRoomState.players) {
+    updateSidebarPlayerStatus(currentRoomState.players, {});
+  }
+
   currentRoundPayload = payload;
   const currentRound = payload.round ?? 0;
 
@@ -1066,6 +1204,19 @@ socket.on("result:sync", ({ chainIndex }) => {
 
 // 다시하기 (방장이 누르면 모두 로비로)
 socket.on("game:restarted", () => {
+  // 키워드 입력란 초기화
+  const promptInputs = document.querySelectorAll(".input-prompt");
+  promptInputs.forEach((input) => {
+    input.value = "";
+  });
+
+  // 스토리 입력란 초기화
+  if (inputStoryText) inputStoryText.value = "";
+
+  // 제시어 제출 버튼 활성화
+  if (btnSubmitPrompts) btnSubmitPrompts.disabled = false;
+  if (waitMsg) waitMsg.classList.add("hidden");
+
   showScreen(screenLobby);
 });
 
