@@ -720,7 +720,12 @@ function buildResultPayload(room) {
 function abortGame(roomId, reason) {
   const room = getRoom(roomId);
   if (!room) return;
-
+  
+  // 시작 카운트다운 정리
+  if (room.startCountdownInterval) {
+    clearInterval(room.startCountdownInterval);
+    room.startCountdownInterval = null;
+  }
   // 타이머 정리
   if (room.game && room.game.timerInterval) {
     clearInterval(room.game.timerInterval);
@@ -787,6 +792,7 @@ io.on("connection", (socket) => {
         createdAt: Date.now(),
         players: {},
         game: null,
+        startCountdownInterval: null,
       };
 
       socket.join(roomId);
@@ -887,15 +893,47 @@ io.on("connection", (socket) => {
       if (socket.id !== room.hostId) return ack?.({ ok: false, error: "NOT_HOST" });
       if (Object.keys(room.players).length < 2) return ack?.({ ok: false, error: "NEED_2_PLAYERS" });
 
+    // 이미 카운트다운 중이면 중복 방지
+    if (room.startCountdownInterval) {
+      return ack?.({ ok: false, error: "COUNTDOWN_ALREADY_RUNNING" });
+    }
+
+    // phase를 countdown으로 전환
+    room.phase = "countdown";
+    emitRoomState(rid);
+
+    ack?.({ ok: true });
+
+    // 3초 카운트다운
+    let secondsLeft = 3;
+
+    // 시작 즉시 1회 전송
+    io.to(rid).emit("game:countdown", { secondsLeft });
+
+    room.startCountdownInterval = setInterval(() => {
+      secondsLeft -= 1;
+
+      if (secondsLeft > 0) {
+        io.to(rid).emit("game:countdown", { secondsLeft });
+        return;
+      }
+
+      // 0 도달: 종료
+      clearInterval(room.startCountdownInterval);
+      room.startCountdownInterval = null;
+
+      // 실제 게임 시작
       resetForNewGame(room);
       emitRoomState(rid);
 
-      ack?.({ ok: true });
-    } catch (e) {
-      console.error(e);
-      ack?.({ ok: false, error: "SERVER_ERROR" });
-    }
-  });
+      io.to(rid).emit("game:countdownEnd");
+    }, 1000);
+
+  } catch (e) {
+    console.error(e);
+    ack?.({ ok: false, error: "SERVER_ERROR" });
+  }
+});
 
   // ------------------------------------------------------------
   // 제시어 제출
