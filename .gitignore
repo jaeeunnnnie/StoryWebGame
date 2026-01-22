@@ -140,3 +140,6 @@ vite.config.ts.timestamp-*
 
 # .gitignore 추가 내용
 .env.local
+
+# claude code
+CLAUDE.md

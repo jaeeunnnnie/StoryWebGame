@@ -35,6 +35,8 @@ const btnStart = $("btn-start");
 // prompts
 const btnSubmitPrompts = $("btn-submit-prompts");
 const waitMsg = $("wait-msg");
+const displayPromptTimer = $("display-prompt-timer");
+const promptStatusList = $("prompt-status-list");
 
 // story
 const displayRound = $("display-round");
@@ -52,6 +54,7 @@ const chatContainer = $("chat-container");
 const storyProgress = $("story-progress");
 const progressText = $("progress-text");
 const btnPrev = $("btn-prev");
+const btnSkipSentence = $("btn-skip-sentence");
 const btnNextStory = $("btn-next-story");
 const btnRestart = $("btn-restart");
 const btnScreenshot = $("btn-screenshot");
@@ -95,7 +98,8 @@ let displayedEntryCount = 0;   // 현재 표시된 문장 수
 
 // TTS 관련
 let ttsEnabled = true;       // TTS 활성화 여부
-let currentUtterance = null; // 현재 재생 중인 TTS
+let currentAudio = null;     // 현재 재생 중인 오디오
+let currentTTSId = 0;        // TTS 요청 ID (취소/중복 방지용)
 
 // 닉네임 색상 배열 (다양한 색상으로 구분)
 const NICKNAME_COLORS = [
@@ -111,6 +115,18 @@ const NICKNAME_COLORS = [
 
 // 플레이어 이름 → 색상 매핑 (결과 화면용)
 let playerColorMap = {};
+
+// ---- Utility: Visual Length ----
+function getVisualLength(str) {
+  if (!str) return 0;
+  let len = 0;
+  for (let i = 0; i < str.length; i++) {
+    // 한글 등 2바이트 이상 문자는 가중치 2, 그 외 1
+    if (str.charCodeAt(i) > 127) len += 2;
+    else len += 1;
+  }
+  return len;
+}
 
 // ---- UI helpers ----
 function showScreen(which) {
@@ -145,11 +161,20 @@ function updatePromptUsageUI() {
 
 // 닉네임을 매번 안전하게 확보 (버튼 누르는 순간 읽어서 myName 갱신)
 function ensureName() {
-  const trimmed = String(nicknameInput?.value || "").trim();
+  const raw = String(nicknameInput?.value || "");
+  const trimmed = raw.trim();
+  
   if (!trimmed) {
     alertError("닉네임을 입력해줘!");
     return null;
   }
+
+  const vLen = getVisualLength(trimmed);
+  if (vLen > 16) {
+    alertError(`닉네임이 너무 길어! (한글 8자, 영문 16자 이내)\n현재 길이: ${vLen}/16`);
+    return null;
+  }
+
   myName = trimmed;
   return myName;
 }
@@ -163,8 +188,48 @@ function renderPlayers(players, hostId) {
     div.className = "player-card";
     const isHost = p.id === hostId;
     const promptDone = p.submitted?.prompts ? " (제시어 완료)" : "";
-    div.textContent = `${p.name}${isHost ? " (방장)" : ""}${promptDone}`;
+    
+    // 이름 잘림 처리 (CSS로 처리되지만 안전장치)
+    let displayName = p.name;
+    if (getVisualLength(displayName) > 16) {
+      displayName = displayName.substring(0, 10) + "...";
+    }
+
+    div.textContent = `${displayName}${isHost ? " (방장)" : ""}${promptDone}`;
+    div.title = p.name; // 툴팁으로 전체 이름 표시
     playerList.appendChild(div);
+  });
+}
+
+// 키워드 작성 상태 렌더링 (키워드 입력 화면에서 사용)
+function renderPromptStatus(players, writingStatus) {
+  if (!promptStatusList) return;
+  promptStatusList.innerHTML = "";
+
+  (players || []).forEach((p) => {
+    const div = document.createElement("div");
+    const isDone = p.submitted?.prompts === true;
+    const isWritingNow = writingStatus?.[p.id] === true;
+
+    div.className = `player-status-item ${isDone ? "done" : (isWritingNow ? "writing" : "")}`;
+
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "status-icon";
+
+    if (isDone) {
+      iconSpan.textContent = "✓";
+    } else if (isWritingNow) {
+      iconSpan.textContent = "...";
+    } else {
+      iconSpan.textContent = "○";
+    }
+
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = p.name;
+
+    div.appendChild(iconSpan);
+    div.appendChild(nameSpan);
+    promptStatusList.appendChild(div);
   });
 }
 
@@ -214,9 +279,10 @@ function renderPlayerSidebars(players, writingStatus) {
   const leftCount = Math.ceil(totalPlayers / 2);
 
   playerArray.forEach((p, index) => {
-    const playerDiv = createSidebarPlayer(p, writingStatus);
+    const isLeftSide = index < leftCount;
+    const playerDiv = createSidebarPlayer(p, writingStatus, isLeftSide);
 
-    if (index < leftCount) {
+    if (isLeftSide) {
       playersLeft.appendChild(playerDiv);
     } else {
       playersRight.appendChild(playerDiv);
@@ -225,7 +291,7 @@ function renderPlayerSidebars(players, writingStatus) {
 }
 
 // 사이드바 플레이어 요소 생성
-function createSidebarPlayer(player, writingStatus) {
+function createSidebarPlayer(player, writingStatus, isLeftSide) {
   const isDone = player.submitted?.story === true;
   const isWritingNow = writingStatus?.[player.id] === true;
   const isMe = player.id === socket.id;
@@ -252,6 +318,7 @@ function createSidebarPlayer(player, writingStatus) {
   const nameDiv = document.createElement("div");
   nameDiv.className = "player-name";
   nameDiv.textContent = player.name;
+  div.title = player.name; // 툴팁
 
   // 상태
   const statusDiv = document.createElement("div");
@@ -281,7 +348,73 @@ function createSidebarPlayer(player, writingStatus) {
 
     emojiToggleBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      emojiPickerDiv.classList.toggle("hidden");
+      
+      const isHidden = emojiPickerDiv.classList.contains("hidden");
+      
+      // 다른 모든 피커 닫기
+      document.querySelectorAll(".sidebar-emoji-picker").forEach(el => el.classList.add("hidden"));
+      
+      if (isHidden) {
+        emojiPickerDiv.classList.remove("hidden");
+        
+        // --- Dynamic Positioning Logic ---
+        // 왼쪽 사이드바면 오른쪽으로, 오른쪽이면 왼쪽으로
+        // "Left-aligned Profile: The emoticon window should open to the left" (Prompt requirement)
+        // -> However, standard is opening *inwards*. 
+        // -> Requirement says: "Left-aligned Profile: ... open to the left", "Right-aligned Profile: ... open to the right".
+        // -> This might push it off-screen. I will implement clamping.
+        
+        // Reset styles first
+        emojiPickerDiv.style.left = "";
+        emojiPickerDiv.style.right = "";
+        emojiPickerDiv.style.top = "100%";
+        emojiPickerDiv.style.transform = "";
+
+        if (isLeftSide) {
+           // Left Sidebar -> Try opening to the LEFT (as per requirement?) or RIGHT (standard)?
+           // Request: "Left-aligned Profile: The emoticon window should open to the left of the profile."
+           // If I open to the left of a left-aligned profile, it goes off screen.
+           // I'll assume "Left-aligned" means "RelativeToParent: Left".
+           
+           // Let's try to position it to the RIGHT for LeftSidebar (standard UI) 
+           // but check constraints.
+           
+           // If strictly following "Open to the Left":
+           // emojiPickerDiv.style.right = "100%"; 
+           // emojiPickerDiv.style.left = "auto";
+           
+           // Let's default to: Left Sidebar -> Open Right (inwards). Right Sidebar -> Open Left (inwards).
+           // If user specifically meant "Left of the profile" literally, I'd do that, but it's unusable.
+           // I will implement "Dynamic positioning... based on horizontal alignment".
+           
+           emojiPickerDiv.style.left = "105%"; // Open to the right
+           emojiPickerDiv.style.right = "auto";
+           emojiPickerDiv.style.top = "0";
+           emojiPickerDiv.style.transform = "none";
+        } else {
+           // Right Sidebar -> Open Left
+           emojiPickerDiv.style.right = "105%"; // Open to the left
+           emojiPickerDiv.style.left = "auto";
+           emojiPickerDiv.style.top = "0";
+           emojiPickerDiv.style.transform = "none";
+        }
+
+        // Clamping (Overflow protection)
+        const rect = emojiPickerDiv.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        
+        // If overflowing right edge
+        if (rect.right > viewportWidth) {
+          emojiPickerDiv.style.left = "auto";
+          emojiPickerDiv.style.right = "105%"; // Flip to left
+        }
+        
+        // If overflowing left edge
+        if (rect.left < 0) {
+          emojiPickerDiv.style.right = "auto";
+          emojiPickerDiv.style.left = "105%"; // Flip to right
+        }
+      }
     });
 
     div.appendChild(emojiToggleBtn);
@@ -332,9 +465,6 @@ const AVATAR_LIST = [
   { id: "avatar6", type: "emoji", content: "🐶" },
   { id: "avatar7", type: "emoji", content: "🦊" },
   { id: "avatar8", type: "emoji", content: "🐸" },
-  // 커스텀 이미지 예시 (나중에 추가):
-  // { id: "custom_avatar1", type: "image", content: "/images/avatars/avatar1.png" },
-  // { id: "custom_avatar2", type: "image", content: "/images/avatars/avatar2.png" },
 ];
 
 // 아바타 목록 렌더링
@@ -409,8 +539,6 @@ const EMOJI_LIST = [
   { id: "thinking", type: "emoji", content: "🤔" },
   { id: "cry", type: "emoji", content: "😭" },
   { id: "surprise", type: "emoji", content: "😱" },
-  // 커스텀 이미지 예시 (나중에 추가):
-  // { id: "custom1", type: "image", content: "/images/emoji/custom1.png" },
 ];
 
 // 이모티콘 목록 렌더링 (전역 이모지 리스트용 - 기존 호환)
@@ -434,7 +562,6 @@ function renderEmojiList() {
 
     btn.addEventListener("click", () => {
       sendEmoji(emoji.id);
-      // 이모티콘 전송해도 창 닫지 않음
     });
 
     emojiList.appendChild(btn);
@@ -463,7 +590,6 @@ function renderSidebarEmojiPicker(container) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation(); // 이벤트 버블링 방지
       sendEmoji(emoji.id);
-      // 이모티콘 전송해도 창 닫지 않음
     });
 
     container.appendChild(btn);
@@ -490,7 +616,7 @@ function sendEmoji(emojiId) {
   socket.emit("emoji:send", { emojiId });
 }
 
-// 받은 이모티콘 표시 (플레이어 아바타 옆에 표시)
+// 받은 이모티콘 표시 (플레이어 아바타 주위에 랜덤 위치로 표시)
 function displayReceivedEmoji(senderId, senderName, emojiId) {
   const emoji = EMOJI_LIST.find(e => e.id === emojiId);
   if (!emoji) return;
@@ -500,24 +626,79 @@ function displayReceivedEmoji(senderId, senderName, emojiId) {
                     playersRight?.querySelector(`[data-player-id="${senderId}"]`);
 
   if (playerDiv) {
-    // 플레이어 아바타 옆에 이모티콘 표시
+    // 플레이어가 어느 사이드바에 있는지 확인
+    const isLeftSide = playersLeft?.contains(playerDiv);
+    const parentSidebar = isLeftSide ? playersLeft : playersRight;
+
+    // 플레이어 위치 가져오기
+    const playerRect = playerDiv.getBoundingClientRect();
+    const sidebarRect = parentSidebar.getBoundingClientRect();
+
+    // 이모티콘 엘리먼트 생성
     const emojiEl = document.createElement("div");
-    emojiEl.className = "player-emoji";
+    emojiEl.className = "player-emoji-floating";
+    emojiEl.style.position = "absolute";
+    emojiEl.style.fontSize = "32px";
+    emojiEl.style.zIndex = "100";
+    emojiEl.style.pointerEvents = "none";
 
     if (emoji.type === "image") {
-      emojiEl.innerHTML = `<img src="${emoji.content}" alt="${emojiId}">`;
+      emojiEl.innerHTML = `<img src="${emoji.content}" alt="${emojiId}" style="width: 40px; height: 40px;">`;
     } else {
       emojiEl.textContent = emoji.content;
     }
 
-    playerDiv.appendChild(emojiEl);
+    // 랜덤 위치 계산 (플레이어 프로필 주위) - 범위 확대
+    const randomOffsetX = (Math.random() - 0.5) * 150; // -75px ~ +75px
+    const randomOffsetY = (Math.random() - 0.5) * 100; // -50px ~ +50px
+    const randomRotation = (Math.random() - 0.5) * 60; // -30deg ~ +30deg
 
-    // 2.5초 후 제거 (애니메이션 완료 후)
-    setTimeout(() => {
+    // 사이드바 기준 위치 계산
+    const relativeTop = playerRect.top - sidebarRect.top + playerRect.height / 2 + randomOffsetY;
+    let relativeLeft;
+
+    if (isLeftSide) {
+      // 왼쪽 사이드바: 프로필 오른쪽에 표시 (좀 더 안쪽/바깥쪽 다양하게)
+      relativeLeft = playerRect.width + 20 + randomOffsetX;
+    } else {
+      // 오른쪽 사이드바: 프로필 왼쪽에 표시
+      relativeLeft = -60 + randomOffsetX;
+    }
+
+    emojiEl.style.top = relativeTop + "px";
+    emojiEl.style.left = relativeLeft + "px";
+    emojiEl.style.transform = `rotate(${randomRotation}deg)`;
+
+    // 사이드바에 추가 (relative positioning을 위해)
+    parentSidebar.style.position = "relative";
+    parentSidebar.appendChild(emojiEl);
+
+    // 애니메이션: 위로 올라가며 페이드아웃
+    const animation = emojiEl.animate([
+      {
+        transform: `translateY(0) scale(0.5) rotate(${randomRotation}deg)`,
+        opacity: 0
+      },
+      {
+        transform: `translateY(0) scale(1.2) rotate(${randomRotation}deg)`,
+        opacity: 1,
+        offset: 0.1
+      },
+      {
+        transform: `translateY(-100px) scale(1) rotate(${randomRotation}deg)`,
+        opacity: 0
+      }
+    ], {
+      duration: 2500,
+      easing: "ease-out"
+    });
+
+    animation.onfinish = () => {
       emojiEl.remove();
-    }, 2500);
+    };
+
   } else {
-    // 사이드바에 플레이어가 없으면 기존 방식으로 표시
+    // 사이드바에 플레이어가 없으면 중앙에 표시
     if (!emojiDisplay) return;
 
     const container = document.createElement("div");
@@ -641,6 +822,32 @@ function renderPromptChips(container, items) {
     chip.className = "result-item";
     chip.textContent = t;
     chip.dataset.prompt = normalizePromptText(t);
+    chip.style.cursor = "pointer"; // 클릭 가능 표시
+
+    // 클릭 시 textarea에 자동 입력
+    chip.addEventListener("click", () => {
+      if (inputStoryText && !inputStoryText.disabled) {
+        const currentText = inputStoryText.value;
+        const keyword = t;
+
+        // 현재 텍스트가 있으면 공백 추가, 없으면 그대로
+        if (currentText.trim()) {
+          inputStoryText.value = currentText + " " + keyword;
+        } else {
+          inputStoryText.value = keyword;
+        }
+
+        // textarea에 포커스
+        inputStoryText.focus();
+
+        // 커서를 끝으로 이동
+        inputStoryText.setSelectionRange(inputStoryText.value.length, inputStoryText.value.length);
+        
+        // 입력 이벤트 트리거 (작성 상태 및 자동저장 트리거)
+        inputStoryText.dispatchEvent(new Event('input'));
+      }
+    });
+
     container.appendChild(chip);
   }
 }
@@ -686,30 +893,23 @@ function normalizePromptText(labelText) {
   return s.slice(idx + 1).trim();
 }
 
-// ---- TTS 함수 ----
-function stopTTS() {
-  if (window.speechSynthesis) {
-    window.speechSynthesis.cancel();
-  }
-  currentUtterance = null;
+// ---- TTS 함수 (TypeCast API 사용) ----
+// TTS 전면 취소 함수 (새로운 TTS 요청 전에 호출)
+function cancelTTS() {
+  currentTTSId++; // ID 증가시켜 이전 콜백 무효화
+  stopTTS();
 }
 
-// 한국어 음성 찾기 (캐싱)
-let cachedKoreanVoice = null;
-function getKoreanVoice() {
-  if (cachedKoreanVoice) return cachedKoreanVoice;
-  
-  try {
-    const voices = window.speechSynthesis?.getVoices() || [];
-    const koreanVoice = voices.find(v => v.lang.startsWith("ko"));
-    if (koreanVoice) {
-      cachedKoreanVoice = koreanVoice;
-      return koreanVoice;
+function stopTTS() {
+  if (currentAudio) {
+    try {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    } catch (e) {
+      console.warn("TTS 정지 중 오류:", e);
     }
-  } catch (e) {
-    console.error("음성 로드 중 오류:", e);
+    currentAudio = null;
   }
-  return null;
 }
 
 function speakText(text, onEndCallback) {
@@ -718,53 +918,170 @@ function speakText(text, onEndCallback) {
     if (onEndCallback) onEndCallback();
     return;
   }
-  if (!window.speechSynthesis) {
-    console.warn("이 브라우저는 TTS를 지원하지 않습니다.");
-    if (onEndCallback) onEndCallback();
-    return;
-  }
 
-  // 이전 TTS 중지
-  stopTTS();
+  // 이전 TTS 중지 및 ID 갱신
+  cancelTTS();
+  const myId = currentTTSId; // 이 요청의 ID 캡처
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "ko-KR";
-  utterance.rate = 1.0;  // 속도 (0.1 ~ 10)
-  utterance.pitch = 1.0; // 피치 (0 ~ 2)
-  utterance.volume = 1.0; // 볼륨 (0 ~ 1)
+  // 서버에 TTS 요청
+  socket.emit("tts:request", { text }, (response) => {
+    // ID가 변경되었으면 (취소되었으면) 무시
+    if (myId !== currentTTSId) return;
 
-  // 한국어 음성 설정
-  const koreanVoice = getKoreanVoice();
-  if (koreanVoice) {
-    utterance.voice = koreanVoice;
-  }
+    if (!response) {
+      console.error("TTS 응답 없음");
+      if (onEndCallback) onEndCallback();
+      return;
+    }
 
-  // TTS 완료 시 콜백 호출
-  if (onEndCallback) {
-    utterance.onend = () => {
-      onEndCallback();
-    };
-    utterance.onerror = () => {
-      onEndCallback();
-    };
-  }
+    if (!response.ok) {
+      console.error("TTS 요청 실패:", response.error);
+      if (onEndCallback) onEndCallback();
+      return;
+    }
 
-  currentUtterance = utterance;
+    try {
+      // Base64 오디오 데이터를 Audio 객체로 변환
+      const audioData = response.audioData;
+      const format = response.format || "mp3";
+      const mimeType = format === "mp3" ? "audio/mpeg" : "audio/wav";
+
+      const audioBlob = base64ToBlob(audioData, mimeType);
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      const audio = new Audio(audioUrl);
+      currentAudio = audio;
+
+      // 오디오 재생 완료 시 콜백 호출
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        if (myId === currentTTSId) {
+          currentAudio = null;
+          if (onEndCallback) onEndCallback();
+        }
+      };
+
+      audio.onerror = (e) => {
+        console.error("오디오 재생 중 오류:", e);
+        URL.revokeObjectURL(audioUrl);
+        if (myId === currentTTSId) {
+          currentAudio = null;
+          if (onEndCallback) onEndCallback();
+        }
+      };
+
+      // 오디오 재생
+      audio.play().catch((e) => {
+        console.error("오디오 재생 실패:", e);
+        URL.revokeObjectURL(audioUrl);
+        if (myId === currentTTSId) {
+          currentAudio = null;
+          if (onEndCallback) onEndCallback();
+        }
+      });
+
+    } catch (e) {
+      console.error("TTS 처리 중 오류:", e);
+      if (myId === currentTTSId && onEndCallback) onEndCallback();
+    }
+  });
+}
+
+// Base64를 Blob으로 변환하는 헬퍼 함수
+function base64ToBlob(base64, mimeType) {
   try {
-    window.speechSynthesis.speak(utterance);
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: mimeType });
   } catch (e) {
-    console.error("TTS 재생 중 오류:", e);
-    if (onEndCallback) onEndCallback();
+    console.error("Base64 디코딩 오류:", e);
+    throw e;
   }
 }
 
-// 음성 목록 로드 (일부 브라우저에서 필요)
-if (window.speechSynthesis) {
-  window.speechSynthesis.onvoiceschanged = () => {
-    // 캐시 초기화하여 다시 로드되도록
-    cachedKoreanVoice = null;
-    getKoreanVoice();
-  };
+// 폭죽 효과 표시
+function showFireworks(element) {
+  const fireworksColors = ["#ff0", "#f0f", "#0ff", "#f00", "#0f0", "#00f", "#ffa500"];
+
+  // 여러 개의 파티클 생성
+  for (let i = 0; i < 20; i++) {
+    const particle = document.createElement("div");
+    particle.style.cssText = `
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: ${fireworksColors[Math.floor(Math.random() * fireworksColors.length)]};
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1000;
+    `;
+
+    const rect = element.getBoundingClientRect();
+    const startX = rect.left + rect.width / 2;
+    const startY = rect.top + rect.height / 2;
+
+    particle.style.left = startX + "px";
+    particle.style.top = startY + "px";
+
+    document.body.appendChild(particle);
+
+    // 랜덤 방향으로 애니메이션
+    const angle = (Math.PI * 2 * i) / 20;
+    const distance = 50 + Math.random() * 50;
+    const endX = startX + Math.cos(angle) * distance;
+    const endY = startY + Math.sin(angle) * distance;
+
+    particle.animate(
+      [
+        { transform: "translate(0, 0) scale(1)", opacity: 1 },
+        { transform: `translate(${endX - startX}px, ${endY - startY}px) scale(0)`, opacity: 0 }
+      ],
+      {
+        duration: 800,
+        easing: "cubic-bezier(0, 0.5, 0.5, 1)"
+      }
+    ).onfinish = () => {
+      particle.remove();
+    };
+  }
+
+  // 이모지 폭죽 효과
+  const emojiFireworks = ["🎉", "✨", "🌟", "💫", "⭐"];
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => {
+      const emoji = document.createElement("div");
+      emoji.textContent = emojiFireworks[Math.floor(Math.random() * emojiFireworks.length)];
+      emoji.style.cssText = `
+        position: absolute;
+        font-size: 24px;
+        pointer-events: none;
+        z-index: 1001;
+      `;
+
+      const rect = element.getBoundingClientRect();
+      emoji.style.left = rect.left + Math.random() * rect.width + "px";
+      emoji.style.top = rect.top + "px";
+
+      document.body.appendChild(emoji);
+
+      emoji.animate(
+        [
+          { transform: "translateY(0) scale(1)", opacity: 1 },
+          { transform: "translateY(-100px) scale(1.5)", opacity: 0 }
+        ],
+        {
+          duration: 1000,
+          easing: "ease-out"
+        }
+      ).onfinish = () => {
+        emoji.remove();
+      };
+    }, i * 100);
+  }
 }
 
 
@@ -815,7 +1132,7 @@ function initResultsPresentation(payload) {
   displayedEntryCount = 0;
 
   // 이전 TTS, 애니메이션 중지
-  stopTTS();
+  cancelTTS();
   stopChatAnimation();
 
   // 플레이어별 색상 매핑 생성
@@ -853,7 +1170,7 @@ function initResultsPresentation(payload) {
 
 // 특정 스토리 표시 (채팅방 스타일로 문장 순차 표시)
 function displayStory(chainIndex) {
-  stopTTS();
+  cancelTTS();
   stopChatAnimation();
 
   currentChainIndex = chainIndex;
@@ -955,8 +1272,23 @@ function showNextChatMessage(entries, index) {
   bubbleDiv.className = "chat-bubble";
   bubbleDiv.innerHTML = highlightKeywords(entry.text || "", entry.usedKeywords || []);
 
+  // 좋아요 버튼 추가
+  const likeBtn = document.createElement("button");
+  likeBtn.className = "like-btn";
+  likeBtn.innerHTML = `<span class="like-icon">❤️</span> <span class="like-count">0</span>`;
+  likeBtn.dataset.chainIndex = currentChainIndex;
+  likeBtn.dataset.entryIndex = index;
+  likeBtn.style.cssText = "margin-top: 5px; padding: 5px 10px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 15px; cursor: pointer; font-size: 14px;";
+
+  likeBtn.addEventListener("click", () => {
+    const chainIdx = parseInt(likeBtn.dataset.chainIndex);
+    const entryIdx = parseInt(likeBtn.dataset.entryIndex);
+    socket.emit("sentence:like", { chainIndex: chainIdx, entryIndex: entryIdx });
+  });
+
   contentDiv.appendChild(writerDiv);
   contentDiv.appendChild(bubbleDiv);
+  contentDiv.appendChild(likeBtn);
 
   messageDiv.appendChild(avatarDiv);
   messageDiv.appendChild(contentDiv);
@@ -970,30 +1302,18 @@ function showNextChatMessage(entries, index) {
   displayedEntryCount = index + 1;
 
   // TTS로 읽기 - 완료 후 다음 메시지로 넘어감
-  try {
-    speakText(entry.text, () => {
-      // TTS 완료 후 약간의 딜레이 추가 (자연스러운 전환)
-      chatAnimationTimer = setTimeout(() => {
-        if (isLastEntry) {
-          // 마지막 문장이면 버튼 활성화
-          updateResultButtons(false);
-        } else {
-          // 다음 메시지 표시
-          showNextChatMessage(entries, index + 1);
-        }
-      }, 500); // TTS 완료 후 0.5초 딜레이
-    });
-  } catch (e) {
-    console.error("TTS 재생 중 오류:", e);
-    // 에러 시에도 다음으로 진행
+  speakText(entry.text, () => {
+    // TTS 완료 후 약간의 딜레이 추가 (자연스러운 전환)
     chatAnimationTimer = setTimeout(() => {
       if (isLastEntry) {
+        // 마지막 문장이면 버튼 활성화
         updateResultButtons(false);
       } else {
+        // 다음 메시지 표시
         showNextChatMessage(entries, index + 1);
       }
-    }, 2000);
-  }
+    }, 500); // TTS 완료 후 0.5초 딜레이
+  });
 }
 
 // 버튼 상태 업데이트
@@ -1029,6 +1349,12 @@ function updateResultButtons(isAnimating = false) {
     } else {
       btnNextStory.classList.add("hidden");
     }
+  }
+
+  // 스킵 버튼 (애니메이션 중일 때만 표시, 모든 사용자)
+  if (btnSkipSentence) {
+    btnSkipSentence.disabled = allDisplayed;
+    btnSkipSentence.classList.toggle("hidden", allDisplayed);
   }
 
   // 다시하기 버튼 (마지막 스토리에서 모든 문장 표시 완료 시, 방장만)
@@ -1092,6 +1418,15 @@ if (state.phase === "lobby") {
   if (state.phase === "prompt") {
     showScreen(screenPrompts);
 
+    // 키워드 입력 필드 초기화 (다시하기 시)
+    const promptInputs = document.querySelectorAll(".input-prompt");
+    promptInputs.forEach(input => {
+      input.value = "";
+    });
+
+    // 플레이어 작성 상태 렌더링
+    renderPromptStatus(state.players, {});
+
     if (btnSubmitPrompts) btnSubmitPrompts.disabled = false;
     if (waitMsg) waitMsg.classList.add("hidden");
 
@@ -1124,6 +1459,8 @@ socket.on("connect", () => {
 
 socket.on("disconnect", () => {
   console.log("❌ Socket 연결 끊김");
+  // TTS 중지
+  cancelTTS();
   // 연결 끊기면 안전하게 입장 화면으로
   showScreen(screenName);
 });
@@ -1135,6 +1472,8 @@ socket.on("room:state", (state) => {
 });
 
 socket.on("game:aborted", ({ reason }) => {
+  // TTS 중지
+  cancelTTS();
   alertError(`게임이 중단됐어: ${reason}`);
   showScreen(screenLobby);
 });
@@ -1163,8 +1502,13 @@ socket.on("story:round", (payload) => {
     renderStorySoFar(payload.chainEntries || [], currentRound);
   }
 
-  // 입력란 초기화
-  if (inputStoryText) inputStoryText.value = "";
+  // 입력란 초기화 및 재활성화
+  if (inputStoryText) {
+    inputStoryText.value = "";
+    inputStoryText.disabled = false;
+    inputStoryText.style.opacity = "1";
+    inputStoryText.style.cursor = "text";
+  }
   // 제시어 사용 현황 UI 갱신
   updatePromptUsageUI();
 
@@ -1186,9 +1530,32 @@ socket.on("story:round", (payload) => {
   showScreen(screenStory);
 });
 
+socket.on("prompt:timer", ({ secondsLeft }) => {
+  if (displayPromptTimer) {
+    displayPromptTimer.textContent = `${secondsLeft}s`;
+    // 10초 이하일 때 색상 변경
+    if (secondsLeft <= 10) {
+      displayPromptTimer.style.color = "#ef4444"; // 빨강
+    } else {
+      displayPromptTimer.style.color = "#ff6b6b";
+    }
+  }
+});
+
 socket.on("story:timer", ({ secondsLeft }) => {
   if (displayTimer) {
     displayTimer.textContent = `${secondsLeft}s`;
+  }
+
+  // 타이머 종료 시 (0초) 작성한 내용 자동 제출
+  if (secondsLeft === 0) {
+    const text = String(inputStoryText?.value || "").trim();
+
+    // 버튼이 비활성화되지 않았고 텍스트가 있으면 자동 제출
+    if (btnSubmitStory && !btnSubmitStory.disabled && text) {
+      console.log("타이머 종료: 자동 제출");
+      btnSubmitStory.click();
+    }
   }
 });
 
@@ -1220,6 +1587,13 @@ socket.on("game:restarted", () => {
   showScreen(screenLobby);
 });
 
+// 키워드 작성 상태 업데이트
+socket.on("prompt:writingStatus", ({ writingStatus }) => {
+  if (currentRoomState && currentRoomState.players) {
+    renderPromptStatus(currentRoomState.players, writingStatus);
+  }
+});
+
 // 플레이어 작성 상태 업데이트
 socket.on("story:writingStatus", ({ writingStatus }) => {
   if (currentRoomState && currentRoomState.players) {
@@ -1240,33 +1614,113 @@ socket.on("result:emojiReceived", ({ senderName, emojiType }) => {
   displayResultEmoji(senderName, emojiType);
 });
 
-// ---- Button handlers ----
+// 문장 좋아요 업데이트
+socket.on("sentence:likeUpdated", ({ chainIndex, entryIndex, likeCount, totalPlayers, likedBy }) => {
+  // 해당 문장의 좋아요 버튼 찾기
+  const likeBtn = document.querySelector(`button.like-btn[data-chain-index="${chainIndex}"][data-entry-index="${entryIndex}"]`);
+  if (!likeBtn) return;
 
-// (옵션) Next 버튼: 닉네임 저장하고 join 화면으로 이동
-//btnNext?.addEventListener("click", () => {
- // if (!ensureName()) return;
- // showScreen(screenWaiting);
- // setTimeout(() => roomCodeInput?.focus(), 0);
-//});
-
-// 스토리 입력란 변화 감지: 제시어 사용 현황 UI 갱신 + 작성 중 상태 전송
-inputStoryText?.addEventListener("input", () => {
-  updatePromptUsageUI();
-
-  // 작성 중 상태 전송
-  if (!isWriting) {
-    isWriting = true;
-    socket.emit("story:writing", { writing: true });
+  // 좋아요 수 업데이트
+  const likeCountSpan = likeBtn.querySelector(".like-count");
+  if (likeCountSpan) {
+    likeCountSpan.textContent = likeCount;
   }
 
-  // 2초간 입력 없으면 작성 중 해제
+  // 내가 좋아요 했는지 확인
+  const iLiked = likedBy.includes(socket.id);
+  if (iLiked) {
+    likeBtn.style.background = "rgba(255, 100, 100, 0.3)";
+    likeBtn.style.borderColor = "rgba(255, 100, 100, 0.6)";
+  } else {
+    likeBtn.style.background = "rgba(255,255,255,0.1)";
+    likeBtn.style.borderColor = "rgba(255,255,255,0.3)";
+  }
+
+  // 과반수 이상 좋아요 시 폭죽 효과
+  if (likeCount > totalPlayers / 2) {
+    // 이전에 폭죽을 표시하지 않았으면 표시
+    const bubbleDiv = likeBtn.previousElementSibling;
+    if (bubbleDiv && !bubbleDiv.classList.contains("fireworks-shown")) {
+      bubbleDiv.classList.add("fireworks-shown");
+      showFireworks(bubbleDiv);
+    }
+  }
+});
+
+// ---- Button handlers ----
+
+// 닉네임 입력 제한 (입력 이벤트에서 실시간 체크)
+nicknameInput?.addEventListener("input", (e) => {
+  const val = e.target.value;
+  let len = 0;
+  let newStr = "";
+  
+  for (let i = 0; i < val.length; i++) {
+    const char = val[i];
+    const weight = (char.charCodeAt(0) > 127) ? 2 : 1;
+    if (len + weight > 16) break;
+    len += weight;
+    newStr += char;
+  }
+  
+  if (val !== newStr) {
+    e.target.value = newStr;
+  }
+});
+
+// 키워드 입력란 변화 감지: 작성 중 상태 전송
+let isWritingPrompts = false;
+let writingPromptsTimeout = null;
+
+document.querySelectorAll(".input-prompt").forEach(input => {
+  input.addEventListener("input", () => {
+    // 작성 중 상태 전송
+    if (!isWritingPrompts) {
+      isWritingPrompts = true;
+      socket.emit("prompt:writing", { writing: true });
+    }
+
+    // 2초간 입력 없으면 작성 중 해제
+    if (writingPromptsTimeout) clearTimeout(writingPromptsTimeout);
+    writingPromptsTimeout = setTimeout(() => {
+      if (isWritingPrompts) {
+        isWritingPrompts = false;
+        socket.emit("prompt:writing", { writing: false });
+      }
+    }, 2000);
+  });
+});
+
+// 스토리 입력란 변화 감지: 제시어 사용 현황 UI 갱신 + 작성 중 상태 전송 + Auto Save
+inputStoryText?.addEventListener("input", () => {
+  updatePromptUsageUI();
+  const currentText = inputStoryText.value;
+
+  // 작성 중 상태 전송 (텍스트 포함 - Auto Save)
+  if (!isWriting) {
+    isWriting = true;
+    socket.emit("story:writing", { writing: true, text: currentText });
+  } else {
+    // 이미 작성 중 상태여도 텍스트 갱신을 위해 주기적으로 보낼 수도 있지만
+    // 트래픽 과부하 방지를 위해 디바운스 처리된 타임아웃에서 최종 전송하거나
+    // 중요: 여기서는 간단히 타임아웃 갱신 시점에 'false' 보내기 직전에 한번 더 'true'와 텍스트를 보내는게 좋을수도.
+    // 하지만 단순하게 매번 보내는 건 너무 많음.
+    // -> 서버에서 'writing' 이벤트에 text를 받도록 수정했으므로,
+    //    디바운스 타임아웃 리셋.
+  }
+
+  // 1초간 입력 없으면 작성 중 해제 (서버에 최신본 저장)
   if (writingTimeout) clearTimeout(writingTimeout);
   writingTimeout = setTimeout(() => {
     if (isWriting) {
       isWriting = false;
-      socket.emit("story:writing", { writing: false });
+      // 마지막으로 최신 텍스트와 함께 writing: false 전송 (혹은 true 유지하면서 텍스트만 갱신?)
+      // writing: false로 보내면 '...' 표시가 사라짐.
+      // Auto-save 목적이라면 writing: true 상태로 text만 보내는게 좋지만,
+      // 여기서는 "입력을 멈춤" = "생각중" 으로 간주하여 false를 보냄.
+      socket.emit("story:writing", { writing: false, text: inputStoryText.value });
     }
-  }, 2000);
+  }, 1000);
 });
 
 
@@ -1308,6 +1762,9 @@ btnJoin?.addEventListener("click", () => {
 });
 
 btnLeave?.addEventListener("click", () => {
+  // TTS 중지
+  cancelTTS();
+
   socket.emit("room:leave", {}, (res) => {
     if (!res?.ok) return alertError(`나가기 실패: ${res?.error || "UNKNOWN"}`);
 
@@ -1389,6 +1846,13 @@ btnSubmitStory?.addEventListener("click", () => {
       if (storyWaitMsg) storyWaitMsg.classList.add("hidden");
       return alertError(`제출 실패: ${res?.error || "UNKNOWN"}`);
     }
+
+    // 제출 성공 시 textarea 비활성화 (수정 불가)
+    if (inputStoryText) {
+      inputStoryText.disabled = true;
+      inputStoryText.style.opacity = "0.6";
+      inputStoryText.style.cursor = "not-allowed";
+    }
   });
 });
 
@@ -1399,6 +1863,25 @@ btnNextStory?.addEventListener("click", () => {
 
 btnPrev?.addEventListener("click", () => {
   goPrevStory();
+});
+
+// 문장 스킵 버튼
+btnSkipSentence?.addEventListener("click", () => {
+  const chains = resultData?.chains || [];
+  const chain = chains[currentChainIndex];
+  if (!chain) return;
+
+  const entries = chain.entries || [];
+
+  // 모든 문장이 이미 표시되었으면 무시
+  if (displayedEntryCount >= entries.length) return;
+
+  // 현재 TTS 및 애니메이션 취소 (중요: cancelTTS 호출로 콜백 무효화)
+  cancelTTS();
+  stopChatAnimation();
+
+  // 다음 문장 즉시 표시
+  showNextChatMessage(entries, displayedEntryCount);
 });
 
 // 키보드 네비게이션 (결과 화면에서, 방장만)
@@ -1424,18 +1907,37 @@ btnRestart?.addEventListener("click", () => {
   });
 });
 
-// 스크린샷 저장 (보이는 화면 그대로)
+// 모든 계산된 스타일을 인라인으로 복사하는 헬퍼 함수
+function cloneWithStyles(element) {
+  const clone = element.cloneNode(false);
+  const computedStyle = window.getComputedStyle(element);
+
+  // 모든 스타일 속성을 인라인으로 복사
+  for (let i = 0; i < computedStyle.length; i++) {
+    const prop = computedStyle[i];
+    clone.style[prop] = computedStyle.getPropertyValue(prop);
+  }
+
+  // 자식 요소들도 재귀적으로 복사
+  for (const child of element.children) {
+    clone.appendChild(cloneWithStyles(child));
+  }
+
+  // 텍스트 노드 복사
+  for (const node of element.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      clone.appendChild(node.cloneNode(false));
+    }
+  }
+
+  return clone;
+}
+
+// 스크린샷 저장 (SVG foreignObject + Canvas 방식)
 async function captureAndDownloadScreenshot() {
   const captureContainer = document.querySelector(".results-container");
   if (!captureContainer) {
     alertError("캡처할 대상을 찾을 수 없습니다.");
-    return;
-  }
-
-  // html2canvas 로드 확인
-  if (typeof html2canvas === "undefined") {
-    alertError("스크린샷 라이브러리가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.");
-    console.error("html2canvas is not loaded");
     return;
   }
 
@@ -1452,31 +1954,112 @@ async function captureAndDownloadScreenshot() {
       await document.fonts.ready;
     }
 
-    // 캔버스 캡처 실행
-    const canvas = await html2canvas(captureContainer, {
-      scale: window.devicePixelRatio || 2, // 기기 해상도에 맞춰 선명도 높이기
-      backgroundColor: "#1e293b", // 페이지 배경색과 동일하게 지정
-      useCORS: true,
-      allowTaint: false, // 보안 및 안정성을 위해 false로 설정
-      removeContainer: false, // 실험적 기능 비활성화
-    });
+    // 컨테이너의 크기 가져오기
+    const rect = captureContainer.getBoundingClientRect();
+    const width = Math.ceil(rect.width);
+    const height = Math.ceil(rect.height);
 
-    // 이미지 다운로드 링크 생성 및 클릭
-    const link = document.createElement("a");
-    link.href = canvas.toDataURL("image/png");
-    const fileName = `story_${storyTitle?.textContent || "story"}_${Date.now()}.png`;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 모든 스타일이 인라인으로 복사된 클론 생성
+    const clone = cloneWithStyles(captureContainer);
 
-    alert("이미지가 성공적으로 저장되었습니다!");
+    // CSS 텍스트 수집
+    let cssText = "";
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules || []) {
+          cssText += rule.cssText + "\n";
+        }
+      } catch (e) {
+        // CORS 제약으로 접근할 수 없는 스타일시트는 무시
+        console.warn("Cannot access stylesheet:", e);
+      }
+    }
+
+    // SVG 생성 (스타일 포함)
+    const serializer = new XMLSerializer();
+    const cloneHTML = serializer.serializeToString(clone);
+
+    const svgData = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+        <defs>
+          <style type="text/css">
+            <![CDATA[
+              ${cssText}
+            ]]>
+          </style>
+        </defs>
+        <foreignObject x="0" y="0" width="100%" height="100%">
+          <div xmlns="http://www.w3.org/1999/xhtml" style="width: ${width}px; height: ${height}px; overflow: hidden;">
+            ${cloneHTML}
+          </div>
+        </foreignObject>
+      </svg>
+    `;
+
+    // Canvas에 렌더링
+    const canvas = document.createElement("canvas");
+    const scale = window.devicePixelRatio || 2;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#1e293b";
+    ctx.fillRect(0, 0, width, height);
+
+    // SVG를 이미지로 변환
+    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+
+    img.onload = function() {
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // 이미지 다운로드
+      canvas.toBlob(function(blob) {
+        if (!blob) {
+          alertError("이미지 생성에 실패했습니다.");
+          return;
+        }
+
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        const fileName = `story_${(storyTitle?.textContent || "story").replace(/\s+/g, "_")}_${Date.now()}.png`;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // 정리
+        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(link.href);
+
+        alert("이미지가 성공적으로 저장되었습니다!");
+
+        // UI 복원
+        if (controlsDiv) controlsDiv.style.visibility = "visible";
+        if (restartBtn) restartBtn.style.visibility = "visible";
+      }, "image/png");
+    };
+
+    img.onerror = function(error) {
+      console.error("이미지 로드 중 오류 발생:", error);
+      URL.revokeObjectURL(url);
+      alertError("이미지 저장에 실패했습니다. 다시 시도해 주세요.");
+
+      // UI 복원
+      if (controlsDiv) controlsDiv.style.visibility = "visible";
+      if (restartBtn) restartBtn.style.visibility = "visible";
+    };
+
+    img.src = url;
 
   } catch (error) {
     console.error("스크린샷 캡처 중 오류 발생:", error);
     alertError("이미지 저장에 실패했습니다. 다시 시도해 주세요.");
-  } finally {
-    // 숨겼던 UI 다시 표시 (성공/실패 여부와 관계없이 실행)
+
+    // UI 복원
     if (controlsDiv) controlsDiv.style.visibility = "visible";
     if (restartBtn) restartBtn.style.visibility = "visible";
   }

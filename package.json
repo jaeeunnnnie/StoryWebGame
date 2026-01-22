@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@neosapience/typecast-js": "^0.1.5"
+  }
+}

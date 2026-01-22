@@ -3,6 +3,7 @@ const express = require("express");
 const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
+const { TypecastClient } = require("@neosapience/typecast-js");
 
 const app = express();
 const server = http.createServer(app);
@@ -16,6 +17,62 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+
+// TypeCast TTS 클라이언트 초기화
+const typecastClient = new TypecastClient({
+  apiKey: '__pltNByiXxTsVUzKBPpaHPEuhoXnKFcnGmn5uNsmCk3X'
+});
+
+// 사용 가능한 Voice 목록 확인 (서버 시작 시)
+async function checkAvailableVoices() {
+  try {
+    console.log("=== TypeCast 사용 가능한 Voice 확인 중... ===");
+    const voices = await typecastClient.getVoicesV2({
+      language: 'kor'
+    });
+
+    console.log(`총 ${voices.length}개의 한국어 음성 발견`);
+
+    // 처음 5개만 출력
+    voices.slice(0, 5).forEach((voice, idx) => {
+      console.log(`\n[Voice ${idx + 1}]`);
+      console.log(`  ID: ${voice.voice_id}`);
+      console.log(`  Name: ${voice.voice_name}`);
+      console.log(`  Gender: ${voice.gender}`);
+      console.log(`  Age: ${voice.age}`);
+      console.log(`  Models: ${voice.models.map(m => m.version).join(', ')}`);
+    });
+
+    // tc_5c547545fcfee90007fed459가 있는지 확인
+    const targetVoice = voices.find(v => v.voice_id === 'tc_5c547545fcfee90007fed459');
+    if (targetVoice) {
+      console.log("\n✅ 지정한 Voice ID를 찾았습니다:");
+      console.log(`  ID: ${targetVoice.voice_id}`);
+      console.log(`  Name: ${targetVoice.voice_name}`);
+    } else {
+      console.log("\n❌ 지정한 Voice ID를 찾을 수 없습니다. 첫 번째 Voice를 대체로 사용합니다.");
+      if (voices.length > 0) {
+        console.log(`  대체 Voice ID: ${voices[0].voice_id}`);
+        console.log(`  대체 Voice Name: ${voices[0].voice_name}`);
+      }
+    }
+
+    return voices;
+  } catch (e) {
+    console.error("Voice 목록 조회 실패:", e.message);
+    return [];
+  }
+}
+
+// 서버 시작 시 Voice 확인 (비동기)
+let availableVoices = [];
+checkAvailableVoices().then(voices => {
+  availableVoices = voices;
+  console.log("\n=== TypeCast 초기화 완료 ===\n");
+});
+
+// Express 미들웨어: JSON 파싱
+app.use(express.json());
 
 // Express 미들웨어: CORS 헤더 설정
 app.use((req, res, next) => {
@@ -154,7 +211,7 @@ function resetForNewGame(room) {
 
   room.game.usedCustomPromptSet = new Set(); // 커스텀 카드만 게임 전체에서 추적
   room.game.usedDefaultPromptSet = new Set(); // 기본 카드: 게임 전체에서 1회만 등장
-  
+
   // 타이머 정리
   if (room.game.timerInterval) {
     clearInterval(room.game.timerInterval);
@@ -168,6 +225,65 @@ function resetForNewGame(room) {
     p.prompts = [];
     p.inboxPrompts = [];
   }
+
+  // 키워드 입력 타이머 시작 (60초)
+  startPromptTimer(room.roomId);
+}
+
+// 키워드 입력 타이머
+function startPromptTimer(roomId) {
+  const room = getRoom(roomId);
+  if (!room || room.phase !== "prompt") return;
+
+  const PROMPT_TIMER_DURATION = 60; // 60초
+  let secondsLeft = PROMPT_TIMER_DURATION;
+
+  // 기존 타이머 정리
+  if (room.game.timerInterval) {
+    clearInterval(room.game.timerInterval);
+    room.game.timerInterval = null;
+  }
+
+  // 시작 즉시 1회 전송
+  io.to(roomId).emit("prompt:timer", { secondsLeft });
+
+  room.game.timerInterval = setInterval(() => {
+    secondsLeft -= 1;
+
+    io.to(roomId).emit("prompt:timer", {
+      secondsLeft: Math.max(0, secondsLeft),
+    });
+
+    if (secondsLeft <= 0) {
+      clearInterval(room.game.timerInterval);
+      room.game.timerInterval = null;
+
+      const currentRoom = getRoom(roomId);
+      if (!currentRoom || currentRoom.phase !== "prompt") return;
+
+      // 타임아웃 시 제출하지 않은 플레이어는 빈 키워드 자동 제출
+      const ids = Object.keys(currentRoom.players);
+      for (const sid of ids) {
+        const p = currentRoom.players[sid];
+        if (!p.submitted.prompts) {
+          // 빈 키워드로 자동 제출 (3개)
+          p.prompts = ["기본", "단어", "제출"];
+          p.submitted.prompts = true;
+          currentRoom.game.promptPool[sid] = p.prompts;
+        }
+      }
+
+      // 모두 제출 완료 처리
+      if (allPromptsSubmitted(currentRoom)) {
+        initStoryChains(currentRoom);
+        currentRoom.phase = "story";
+        currentRoom.game.round = 0;
+        currentRoom.game.submittedStory = {};
+        emitRoomState(roomId);
+        startRound(roomId);
+      }
+    }
+  }, 1000);
 }
 
 // ====================================================================
@@ -594,7 +710,7 @@ function startRound(roomId) {
 
   // ------------------------------------------------------------
   // 라운드 타이머
-  const TIMER_DURATION = 30;
+  const TIMER_DURATION = 45; // 45초로 변경 (테스트용, 나중에 60초로 변경 예정)
   let secondsLeft = TIMER_DURATION;
 
   // 기존 타이머 정리
@@ -632,34 +748,61 @@ function startRound(roomId) {
         const chain = chainId ? currentRoom.game.storyChains?.[chainId] : null;
         if (!chain) continue;
 
-        // 라운드0이면 자유 시작 기본문장
-        if (r === 0) {
-          const base = DEFAULT_SENTENCES_ROUND0[Math.floor(Math.random() * DEFAULT_SENTENCES_ROUND0.length)];
-          chain.entries.push({ round: r, writerId: sid, text: base, usedKeywords: [] });
-        } else {
-          // 라운드1+면 "왼쪽 카드 1개"를 강제로 끼워넣는 버전
-          const prompts = currentRoom.game.inboxPrompts?.[sid] || [];
-          const first = prompts[0] ? String(prompts[0]) : "";
-          const keyword = first.includes(":") ? first.split(":").slice(1).join(":").trim() : first.trim();
+        const p = currentRoom.players[sid];
+        let finalText = "";
+        let usedKeywords = [];
 
-          const base = DEFAULT_SENTENCES_LATER[Math.floor(Math.random() * DEFAULT_SENTENCES_LATER.length)];
-          const autoText = keyword ? `${base} ${keyword}` : base;
-
-          const normalize = (s) => String(s || "").replace(/\s+/g, "");
-          const submittedText = normalize(autoText);
-
+        // 1. 드래프트(작성 중이던 내용)가 있으면 우선 사용
+        if (p && p.draftStory && typeof p.draftStory === "string" && p.draftStory.trim().length > 0) {
+          finalText = p.draftStory.trim();
+          
+          // 키워드 분석
           const cards = currentRoom.game.inboxPromptCards?.[sid] || [];
+          usedKeywords = getUsedKeywordsFromCards(finalText, cards);
+
+          // 사용된 커스텀 카드 처리
+          const normalize = (s) => String(s || "").replace(/\s+/g, "");
+          const submittedText = normalize(finalText);
+          
           for (const card of cards) {
             if (!card || card.type !== "custom") continue;
             const key = normalize(card.text);
             const used = key && submittedText.includes(key);
             if (used) currentRoom.game.usedCustomPromptSet.add(card.id);
           }
-          
-          const usedKeywords = getUsedKeywordsFromCards(autoText, cards);
 
-          chain.entries.push({ round: r, writerId: sid, text: autoText, usedKeywords });
+        } else {
+          // 2. 드래프트도 없으면 랜덤 자동 생성
+          // 라운드0이면 자유 시작 기본문장
+          if (r === 0) {
+            const base = DEFAULT_SENTENCES_ROUND0[Math.floor(Math.random() * DEFAULT_SENTENCES_ROUND0.length)];
+            finalText = base;
+          } else {
+            // 라운드1+면 "왼쪽 카드 1개"를 강제로 끼워넣는 버전
+            const prompts = currentRoom.game.inboxPrompts?.[sid] || [];
+            const first = prompts[0] ? String(prompts[0]) : "";
+            const keyword = first.includes(":") ? first.split(":").slice(1).join(":").trim() : first.trim();
+
+            const base = DEFAULT_SENTENCES_LATER[Math.floor(Math.random() * DEFAULT_SENTENCES_LATER.length)];
+            const autoText = keyword ? `${base} ${keyword}` : base;
+
+            const normalize = (s) => String(s || "").replace(/\s+/g, "");
+            const submittedText = normalize(autoText);
+
+            const cards = currentRoom.game.inboxPromptCards?.[sid] || [];
+            for (const card of cards) {
+              if (!card || card.type !== "custom") continue;
+              const key = normalize(card.text);
+              const used = key && submittedText.includes(key);
+              if (used) currentRoom.game.usedCustomPromptSet.add(card.id);
+            }
+            
+            usedKeywords = getUsedKeywordsFromCards(autoText, cards);
+            finalText = autoText;
+          }
         }
+
+        chain.entries.push({ round: r, writerId: sid, text: finalText, usedKeywords });
 
         submittedSet.add(sid);
         if (currentRoom.players[sid]) currentRoom.players[sid].submitted.story = true;
@@ -1095,8 +1238,31 @@ io.on("connection", (socket) => {
   });
 
   // ------------------------------------------------------------
-  // 스토리 작성 중 상태 업데이트
-  socket.on("story:writing", ({ writing }, ack) => {
+  // 키워드 작성 중 상태 업데이트
+  socket.on("prompt:writing", ({ writing }, ack) => {
+    try {
+      const rid = socket.data.roomId;
+      const room = rid ? rooms[rid] : null;
+      if (!room) return ack?.({ ok: false, error: "ROOM_NOT_FOUND" });
+      if (room.phase !== "prompt") return ack?.({ ok: false, error: "NOT_PROMPT_PHASE" });
+
+      // 작성 상태 저장
+      if (!room.promptWritingStatus) room.promptWritingStatus = {};
+      room.promptWritingStatus[socket.id] = writing;
+
+      // 모든 플레이어에게 작성 상태 브로드캐스트
+      io.to(rid).emit("prompt:writingStatus", { writingStatus: room.promptWritingStatus });
+
+      ack?.({ ok: true });
+    } catch (e) {
+      console.error(e);
+      ack?.({ ok: false, error: "SERVER_ERROR" });
+    }
+  });
+
+  // ------------------------------------------------------------
+  // 스토리 작성 중 상태 업데이트 + 드래프트 저장 (Auto-Save)
+  socket.on("story:writing", ({ writing, text }, ack) => {
     try {
       const rid = socket.data.roomId;
       const room = rid ? rooms[rid] : null;
@@ -1106,6 +1272,12 @@ io.on("connection", (socket) => {
       // 작성 상태 저장
       if (!room.writingStatus) room.writingStatus = {};
       room.writingStatus[socket.id] = writing;
+
+      // 드래프트 저장 (연결 끊김 대비)
+      if (text !== undefined) {
+        const p = room.players[socket.id];
+        if (p) p.draftStory = text;
+      }
 
       // 모든 플레이어에게 작성 상태 브로드캐스트
       io.to(rid).emit("story:writingStatus", { writingStatus: room.writingStatus });
@@ -1143,6 +1315,52 @@ io.on("connection", (socket) => {
   });
 
   // ------------------------------------------------------------
+  // 결과 화면 문장 좋아요
+  socket.on("sentence:like", ({ chainIndex, entryIndex }, ack) => {
+    try {
+      const rid = socket.data.roomId;
+      const room = rid ? rooms[rid] : null;
+      if (!room) return ack?.({ ok: false, error: "ROOM_NOT_FOUND" });
+
+      const player = room.players[socket.id];
+      if (!player) return ack?.({ ok: false, error: "PLAYER_NOT_FOUND" });
+
+      // 결과 화면에서만 사용 가능
+      if (room.phase !== "result") return ack?.({ ok: false, error: "NOT_RESULT_PHASE" });
+
+      // 좋아요 데이터 초기화
+      if (!room.sentenceLikes) room.sentenceLikes = {};
+      const likeKey = `${chainIndex}_${entryIndex}`;
+      if (!room.sentenceLikes[likeKey]) room.sentenceLikes[likeKey] = new Set();
+
+      // 토글 방식: 이미 좋아요 했으면 취소, 아니면 추가
+      if (room.sentenceLikes[likeKey].has(socket.id)) {
+        room.sentenceLikes[likeKey].delete(socket.id);
+      } else {
+        room.sentenceLikes[likeKey].add(socket.id);
+      }
+
+      // 좋아요 수 계산
+      const likeCount = room.sentenceLikes[likeKey].size;
+      const totalPlayers = Object.keys(room.players).filter(pid => !room.players[pid].disconnected).length;
+
+      // 모든 플레이어에게 좋아요 상태 브로드캐스트
+      io.to(rid).emit("sentence:likeUpdated", {
+        chainIndex,
+        entryIndex,
+        likeCount,
+        totalPlayers,
+        likedBy: Array.from(room.sentenceLikes[likeKey])
+      });
+
+      ack?.({ ok: true, likeCount, totalPlayers });
+    } catch (e) {
+      console.error(e);
+      ack?.({ ok: false, error: "SERVER_ERROR" });
+    }
+  });
+
+  // ------------------------------------------------------------
   // 결과 화면 이모티콘 전송 (따봉/박수 애니메이션)
   socket.on("result:emoji", ({ emojiType }, ack) => {
     try {
@@ -1171,6 +1389,60 @@ io.on("connection", (socket) => {
   });
 
   // ------------------------------------------------------------
+  // TypeCast TTS 요청 처리
+  socket.on("tts:request", async ({ text }, ack) => {
+    try {
+      if (!text || typeof text !== "string") {
+        console.error("TTS: Invalid text input");
+        return ack?.({ ok: false, error: "INVALID_TEXT" });
+      }
+
+      console.log(`TTS Request: "${text.substring(0, 50)}..."`);
+
+      // Voice ID 결정 (사용 가능한 voice 확인)
+      let voiceId = "tc_5c547545fcfee90007fed459";
+
+      if (availableVoices.length > 0) {
+        const targetVoice = availableVoices.find(v => v.voice_id === voiceId);
+        if (!targetVoice) {
+          // 지정한 voice가 없으면 첫 번째 사용 가능한 voice 사용
+          voiceId = availableVoices[0].voice_id;
+          console.log(`  → 대체 Voice 사용: ${voiceId} (${availableVoices[0].voice_name})`);
+        }
+      }
+
+      // TypeCast API로 TTS 생성 (공식 문서 기준)
+      const audio = await typecastClient.textToSpeech({
+        text: text,
+        voice_id: voiceId,
+        model: "ssfm-v30",
+        language: "kor",
+        output: {
+          audio_format: "mp3",  // mp3가 더 작고 브라우저 호환성 좋음
+          volume: 100,
+          audio_tempo: 1.0
+        }
+      });
+
+      console.log(`TTS Success: Audio generated (${audio.audioData.length} bytes)`);
+
+      // 오디오 데이터를 Base64로 인코딩하여 전송
+      const audioBase64 = Buffer.from(audio.audioData).toString('base64');
+
+      ack?.({ ok: true, audioData: audioBase64, format: "mp3" });
+    } catch (e) {
+      console.error("TTS Error Details:", e);
+      console.error("Error message:", e.message);
+      if (e.response) {
+        console.error("API Response Data:", JSON.stringify(e.response.data, null, 2));
+        console.error("API Status:", e.response.status);
+      }
+      console.error("Error stack:", e.stack);
+      ack?.({ ok: false, error: e.message || "TTS_FAILED" });
+    }
+  });
+
+  // ------------------------------------------------------------
   // 연결 끊김 처리
   socket.on("disconnect", () => {
     const rid = socket.data.roomId;
@@ -1178,24 +1450,45 @@ io.on("connection", (socket) => {
 
     const room = rooms[rid];
     const wasInGame = room.phase !== "lobby";
+    const player = room.players[socket.id];
+    const playerName = player?.name || "Unknown";
 
-    delete room.players[socket.id];
-
-    // 방장이 나갔으면 다른 사람을 방장으로
-    if (room.hostId === socket.id) {
-      const nextHostId = Object.keys(room.players)[0];
-      room.hostId = nextHostId ?? null;
+    // 게임 중이 아니면 바로 삭제
+    if (!wasInGame) {
+      delete room.players[socket.id];
+    } else {
+      // 게임 중이면 disconnected 플래그 설정
+      if (player) {
+        player.disconnected = true;
+      }
     }
 
-    // 방 비었으면 삭제
-    if (Object.keys(room.players).length === 0) {
+    // 실제 활성 플레이어 수 계산 (연결된 사람만)
+    const activePlayers = Object.values(room.players).filter(p => !p.disconnected);
+    const remainingCount = activePlayers.length;
+
+    // 방장 위임 로직
+    if (room.hostId === socket.id) {
+      if (remainingCount > 0) {
+        room.hostId = activePlayers[0].id;
+      } else {
+        room.hostId = null;
+      }
+    }
+
+    // 방 비었으면 삭제 (게임 중이라도 모두 나가면 삭제)
+    if (Object.keys(room.players).length === 0 || (wasInGame && remainingCount === 0)) {
+      console.log(`Room ${rid} deleted (no players left).`);
       delete rooms[rid];
       return;
     }
 
-    // 게임 중 이탈이면 중단 (turnOrder / 체인 꼬임 방지)
+    // 게임 중 이탈 처리
     if (wasInGame) {
-      abortGame(rid, "PLAYER_LEFT");
+      console.log(`Player ${playerName} disconnected during game. ${remainingCount} active player(s) remaining.`);
+      // 1명 이상 남아있으면 게임 유지.
+      // 나간 플레이어의 처리는 타이머/라운드 로직에서 담당 (draft 사용 등)
+      emitRoomState(rid);
       return;
     }
 
