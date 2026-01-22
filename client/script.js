@@ -24,6 +24,48 @@ const hostControls = $("host-controls");
 const btnCopy = $("btn-copy");
 const waitMsgLobby = $("wait-msg-lobby");
 
+// BGM
+const bgmAudio = $("bgm-audio");
+const btnBgm = $("btn-bgm");
+let bgmPlaying = false;
+
+// BGM 컨트롤
+function initBGM() {
+  if (bgmAudio) {
+    bgmAudio.volume = 0.3; // 기본 볼륨 30%
+  }
+}
+
+function toggleBGM() {
+  if (!bgmAudio) return;
+
+  if (bgmPlaying) {
+    bgmAudio.pause();
+    bgmPlaying = false;
+    if (btnBgm) btnBgm.textContent = "🔇";
+  } else {
+    bgmAudio.play().catch(e => console.log("BGM 재생 실패:", e));
+    bgmPlaying = true;
+    if (btnBgm) btnBgm.textContent = "🔊";
+  }
+}
+
+// BGM 버튼 이벤트
+btnBgm?.addEventListener("click", toggleBGM);
+
+// 첫 사용자 인터랙션 시 BGM 자동 재생 시도
+document.addEventListener("click", function autoPlayBGM() {
+  if (!bgmPlaying && bgmAudio) {
+    bgmAudio.play().then(() => {
+      bgmPlaying = true;
+      if (btnBgm) btnBgm.textContent = "🔊";
+    }).catch(e => console.log("BGM 자동재생 실패:", e));
+  }
+  document.removeEventListener("click", autoPlayBGM);
+}, { once: true });
+
+initBGM();
+
 
 // lobby
 const displayRoomCode = $("display-room-code");
@@ -160,10 +202,40 @@ function renderPlayers(players, hostId) {
 
   (players || []).forEach((p) => {
     const div = document.createElement("div");
-    div.className = "player-card";
+    div.className = "participant-item";
     const isHost = p.id === hostId;
-    const promptDone = p.submitted?.prompts ? " (제시어 완료)" : "";
-    div.textContent = `${p.name}${isHost ? " (방장)" : ""}${promptDone}`;
+
+    // 아바타
+    const avatarDiv = document.createElement("div");
+    avatarDiv.className = "participant-avatar";
+    const avatarData = getAvatarById(p.avatar);
+    if (avatarData) {
+      if (avatarData.type === "image") {
+        avatarDiv.innerHTML = `<img src="${avatarData.content}" alt="${p.name}">`;
+      } else {
+        avatarDiv.textContent = avatarData.content;
+      }
+    } else {
+      avatarDiv.textContent = "👤";
+    }
+
+    // 이름
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "participant-name";
+    nameSpan.textContent = p.name;
+
+    div.appendChild(avatarDiv);
+    div.appendChild(nameSpan);
+
+    // 방장 왕관
+    if (isHost) {
+      const crownImg = document.createElement("img");
+      crownImg.className = "participant-crown";
+      crownImg.src = "./image/02_로비/방장왕관.png";
+      crownImg.alt = "방장";
+      div.appendChild(crownImg);
+    }
+
     playerList.appendChild(div);
   });
 }
@@ -253,20 +325,23 @@ function createSidebarPlayer(player, writingStatus) {
   nameDiv.className = "player-name";
   nameDiv.textContent = player.name;
 
-  // 상태
-  const statusDiv = document.createElement("div");
-  statusDiv.className = "player-status";
+  // 상태 (이미지로 표시)
+  const statusImg = document.createElement("img");
+  statusImg.className = "status-img";
   if (isDone) {
-    statusDiv.textContent = "완료 ✓";
+    statusImg.src = "./image/03_키워드 적기/작성완료.png";
+    statusImg.alt = "작성완료";
   } else if (isWritingNow) {
-    statusDiv.textContent = "작성중...";
+    statusImg.src = "./image/03_키워드 적기/작성중.png";
+    statusImg.alt = "작성중";
   } else {
-    statusDiv.textContent = "생각중...";
+    statusImg.src = "./image/03_키워드 적기/생각중.png";
+    statusImg.alt = "생각중";
   }
 
   div.appendChild(avatarDiv);
   div.appendChild(nameDiv);
-  div.appendChild(statusDiv);
+  div.appendChild(statusImg);
 
   // 본인 아바타 아래에만 이모티콘 버튼 추가
   if (isMe) {
@@ -306,14 +381,17 @@ function updateSidebarPlayerStatus(players, writingStatus) {
     if (playerDiv) {
       playerDiv.className = `sidebar-player ${isDone ? "done" : (isWritingNow ? "writing" : "")}`;
 
-      const statusDiv = playerDiv.querySelector(".player-status");
-      if (statusDiv) {
+      const statusImg = playerDiv.querySelector(".status-img");
+      if (statusImg) {
         if (isDone) {
-          statusDiv.textContent = "완료 ✓";
+          statusImg.src = "./image/03_키워드 적기/작성완료.png";
+          statusImg.alt = "작성완료";
         } else if (isWritingNow) {
-          statusDiv.textContent = "작성중...";
+          statusImg.src = "./image/03_키워드 적기/작성중.png";
+          statusImg.alt = "작성중";
         } else {
-          statusDiv.textContent = "생각중...";
+          statusImg.src = "./image/03_키워드 적기/생각중.png";
+          statusImg.alt = "생각중";
         }
       }
     }
@@ -1082,8 +1160,18 @@ if (state.phase === "lobby") {
   if (hostControls) hostControls.classList.toggle("hidden", !isHost);
   if (waitMsgLobby) waitMsgLobby.classList.toggle("hidden", isHost);
 
-  // 방장만 시작 가능
-  if (btnStart) btnStart.disabled = !isHost;
+  // 방장만 시작 버튼 보이기
+  if (btnStart) {
+    btnStart.classList.toggle("hidden", !isHost);
+    btnStart.disabled = !isHost;
+    // 시작 버튼 이미지 변경
+    const startBtnImg = $("start-btn-img");
+    if (startBtnImg) {
+      startBtnImg.src = isHost
+        ? "./image/02_로비/시작하기 버튼_활성화.png"
+        : "./image/02_로비/시작하기 버튼.png";
+    }
+  }
 
   return;
 }
@@ -1169,7 +1257,10 @@ socket.on("story:round", (payload) => {
   updatePromptUsageUI();
 
   // 버튼/메시지 초기화
-  if (btnSubmitStory) btnSubmitStory.disabled = false;
+  if (btnSubmitStory) {
+    btnSubmitStory.disabled = false;
+    btnSubmitStory.classList.remove("submitted"); // 제출 버튼 다시 보이기
+  }
   // 대기 메시지 숨기기
   if (storyWaitMsg) storyWaitMsg.classList.add("hidden");
 
@@ -1216,6 +1307,12 @@ socket.on("game:restarted", () => {
   // 제시어 제출 버튼 활성화
   if (btnSubmitPrompts) btnSubmitPrompts.disabled = false;
   if (waitMsg) waitMsg.classList.add("hidden");
+
+  // 확인 버튼 이미지 초기화
+  const confirmBtnImg = $("confirm-btn-img");
+  if (confirmBtnImg) {
+    confirmBtnImg.src = "./image/03_키워드 적기/확인.png";
+  }
 
   showScreen(screenLobby);
 });
@@ -1360,17 +1457,27 @@ btnSubmitPrompts?.addEventListener("click", () => {
     // 못 적은 경우: placeholder(예시)로 자동 채움
     return String(el.placeholder || "").trim();
   });
- 
+
   // 안전장치: placeholder도 비어있으면 에러
   if (prompts.some((p) => !p)) return alertError("제시어 3개를 모두 입력해줘!");
 
   btnSubmitPrompts.disabled = true;
   if (waitMsg) waitMsg.classList.remove("hidden");
 
+  // 확인 버튼 이미지를 확인_완료로 변경
+  const confirmBtnImg = $("confirm-btn-img");
+  if (confirmBtnImg) {
+    confirmBtnImg.src = "./image/03_키워드 적기/확인_완료.png";
+  }
+
   socket.emit("prompt:submit", { prompts }, (res) => {
     if (!res?.ok) {
       btnSubmitPrompts.disabled = false;
       if (waitMsg) waitMsg.classList.add("hidden");
+      // 실패 시 이미지 원복
+      if (confirmBtnImg) {
+        confirmBtnImg.src = "./image/03_키워드 적기/확인.png";
+      }
       return alertError(`제시어 제출 실패: ${res?.error || "UNKNOWN"}`);
     }
   });
@@ -1381,11 +1488,13 @@ btnSubmitStory?.addEventListener("click", () => {
   if (!text) return alertError("문장을 입력해줘!");
 
   btnSubmitStory.disabled = true;
+  btnSubmitStory.classList.add("submitted"); // 제출 버튼 숨기기
   if (storyWaitMsg) storyWaitMsg.classList.remove("hidden");
 
   socket.emit("story:submit", { text }, (res) => {
     if (!res?.ok) {
       btnSubmitStory.disabled = false;
+      btnSubmitStory.classList.remove("submitted"); // 실패 시 다시 보이기
       if (storyWaitMsg) storyWaitMsg.classList.add("hidden");
       return alertError(`제출 실패: ${res?.error || "UNKNOWN"}`);
     }
