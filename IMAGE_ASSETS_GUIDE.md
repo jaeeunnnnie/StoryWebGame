@@ -16,11 +16,18 @@
 
 ## 1. 적용 완료된 이미지
 
-### 1.1 전체 배경 및 로고
+### 1.1 전체 배경, 로고 및 메뉴
 | 항목 | 파일 | 적용 위치 |
 |------|------|----------|
 | 배경 이미지 | `00_전체/배경.png` | `style.css` body 배경 |
 | 로고 | `00_전체/로고.png` | `index.html` 전역 고정 로고 (모든 화면 중앙 상단) |
+| BGM | `00_전체/Multi Game OST.mp3` | `index.html` audio 태그 |
+
+**설정 메뉴 (상단 왼쪽):**
+- 메뉴 버튼 (`☰`) 클릭으로 슬라이드 메뉴 열기
+- BGM 볼륨 슬라이더 (0~100%)
+- BGM ON/OFF 토글 버튼
+- ESC 키 또는 배경 클릭으로 메뉴 닫기
 
 ### 1.2 입장 화면 (screen-name)
 | 항목 | 파일 | 적용 위치 |
@@ -28,7 +35,24 @@
 | 방 만들기 버튼 | `01_메인화면/게임호스트버튼.png` | `index.html` #btn-create-room |
 | 방 들어가기 버튼 | `01_메인화면/게임입장하기버튼.png` | `index.html` #btn-join-room |
 | 닉네임 입력 배경 | `01_메인화면/작은견출지.png` | `index.html` .nickname-label-wrapper |
-| 아바타 이미지 | `01_메인화면/아바타.png` | `script.js` AVATAR_LIST (이미지 타입) |
+
+**동물 캐릭터 아바타 (12개):**
+| 캐릭터 | 파일 | ID |
+|--------|------|-----|
+| 곰 | `01_메인화면/Char_Bear.png` | bear |
+| 고양이 | `01_메인화면/Char_Cat.png` | cat |
+| 강아지 | `01_메인화면/Char_Dog.png` | dog |
+| 용 | `01_메인화면/Char_Dragon.png` | dragon |
+| 여우 | `01_메인화면/Char_Fox.png` | fox |
+| 개구리 | `01_메인화면/Char_Frog.png` | frog |
+| 코알라 | `01_메인화면/Char_Koala.png` | koala |
+| 판다 | `01_메인화면/Char_Panda.png` | panda |
+| 펭귄 | `01_메인화면/Char_Penguin.png` | penguin |
+| 돼지 | `01_메인화면/Char_Pig.png` | pig |
+| 토끼 | `01_메인화면/Char_Rabbit.png` | rabbit |
+| 호랑이 | `01_메인화면/Char_Tiger.png` | tiger |
+
+**아바타 선택 레이아웃:** 4개씩 3줄 그리드 배치
 
 ### 1.3 로비 화면 (screen-lobby)
 | 항목 | 파일 | 적용 위치 |
@@ -154,13 +178,25 @@ client/image/
 │   └── 배경.png               [적용됨]
 │
 ├── 01_메인화면/
+│   ├── Char_Bear.png          [적용됨] 아바타 - 곰
+│   ├── Char_Cat.png           [적용됨] 아바타 - 고양이
+│   ├── Char_Dog.png           [적용됨] 아바타 - 강아지
+│   ├── Char_Dragon.png        [적용됨] 아바타 - 용
+│   ├── Char_Fox.png           [적용됨] 아바타 - 여우
+│   ├── Char_Frog.png          [적용됨] 아바타 - 개구리
+│   ├── Char_Koala.png         [적용됨] 아바타 - 코알라
+│   ├── Char_Panda.png         [적용됨] 아바타 - 판다
+│   ├── Char_Penguin.png       [적용됨] 아바타 - 펭귄
+│   ├── Char_Pig.png           [적용됨] 아바타 - 돼지
+│   ├── Char_Rabbit.png        [적용됨] 아바타 - 토끼
+│   ├── Char_Tiger.png         [적용됨] 아바타 - 호랑이
 │   ├── 게임입장하기버튼.png    [적용됨]
 │   ├── 게임호스트버튼.png      [적용됨]
 │   ├── 공책.png               (미적용)
 │   ├── 공책속지_투명.png       (미적용)
 │   ├── 볼펜.png               (미적용)
 │   ├── 아바타 선택창.png       (미적용)
-│   ├── 아바타.png             [적용됨] AVATAR_LIST 기본 아바타
+│   ├── 아바타.png             (미적용 - 동물 캐릭터로 대체됨)
 │   ├── 작은견출지.png          [적용됨] 닉네임 입력 배경
 │   ├── 클립.png               (미적용)
 │   └── 형광펜.png             (미적용)
@@ -241,36 +277,54 @@ client/image/
 - **키워드 레이아웃:** `.prompts-layout`, `.prompts-main`
 - **스토리 입력란:** `.story-input-row`, `.story-input-wrapper`, `.story-input-bg`
 - **결과 화면 버튼:** `.results-wrapper`, `.results-side-controls`, `.result-side-btn` (호버 시 rotate(5deg) 애니메이션)
+- **메뉴 스타일:** `.menu-toggle-btn`, `.menu-panel`, `.menu-overlay`, `.volume-slider`, `.mute-toggle-btn`
+- **아바타 그리드:** `.avatar-list` 4개씩 3줄 그리드 레이아웃
 
 ### 4.3 script.js
-- **아바타 시스템:** `AVATAR_LIST`를 이미지 타입으로 변경 (이모지 제거)
+- **아바타 시스템:** `AVATAR_LIST`에 12개 동물 캐릭터 적용
 - **로비 플레이어 렌더링:** `renderPlayers()` 함수에 아바타 이미지 표시 추가
 - **키워드 사이드바:** `renderPromptsSidebars()`, `updatePromptsSidebarStatus()` 함수 추가
 - **사이드바 공용화:** `createSidebarPlayer()`에 `screenType` 파라미터 추가 ("story" | "prompts")
 - **이모티콘 표시:** `displayReceivedEmoji()`가 키워드 화면 사이드바도 지원
 - **스킵 버튼 제거:** `btnSkipSentence` 관련 코드 모두 제거
+- **메뉴 기능:** `openMenu()`, `closeMenu()`, BGM 볼륨 슬라이더, 뮤트 토글
 
 ---
 
-## 5. 아바타 추가 방법
+## 5. 아바타 시스템
 
-현재 아바타는 **이미지 타입**으로 설정되어 있습니다.
+현재 **12개의 동물 캐릭터**가 아바타로 사용됩니다.
 
-### 5.1 새 아바타 추가
+### 5.1 현재 아바타 목록
+| ID | 캐릭터 | 파일명 |
+|----|--------|--------|
+| bear | 곰 | Char_Bear.png |
+| cat | 고양이 | Char_Cat.png |
+| dog | 강아지 | Char_Dog.png |
+| dragon | 용 | Char_Dragon.png |
+| fox | 여우 | Char_Fox.png |
+| frog | 개구리 | Char_Frog.png |
+| koala | 코알라 | Char_Koala.png |
+| panda | 판다 | Char_Panda.png |
+| penguin | 펭귄 | Char_Penguin.png |
+| pig | 돼지 | Char_Pig.png |
+| rabbit | 토끼 | Char_Rabbit.png |
+| tiger | 호랑이 | Char_Tiger.png |
+
+### 5.2 새 아바타 추가 방법
 `script.js`의 `AVATAR_LIST`에 추가:
 
 ```javascript
 const AVATAR_LIST = [
-  { id: "avatar1", type: "image", content: "/image/01_메인화면/아바타.png" },
-  // 새 아바타 추가 예시:
-  { id: "avatar2", type: "image", content: "/image/01_메인화면/아바타2.png" },
-  { id: "avatar3", type: "image", content: "/image/01_메인화면/아바타3.png" },
+  // 기존 12개 캐릭터...
+  { id: "newchar", type: "image", content: "/image/01_메인화면/Char_NewChar.png", name: "새캐릭터" },
 ];
 ```
 
-### 5.2 이미지 파일 준비
+### 5.3 이미지 파일 준비
 - 권장 크기: 100x100px 이상 (정사각형)
 - 형식: PNG (투명 배경 권장)
+- 파일명 규칙: `Char_이름.png`
 - 위치: `/image/01_메인화면/` 폴더
 
 ---
@@ -323,7 +377,8 @@ const AVATAR_LIST = [
 - [x] 전역 로고 이미지 (00_전체/로고.png) - 모든 화면 중앙 상단 고정
 - [x] 입장 화면 버튼 (방 만들기, 방 들어가기)
 - [x] 입장 화면 닉네임 입력 배경 (작은견출지.png)
-- [x] 입장 화면 아바타 (이미지 타입으로 변경)
+- [x] 입장 화면 아바타 (12개 동물 캐릭터, 4x3 그리드 레이아웃)
+- [x] 설정 메뉴 (상단 왼쪽, BGM 볼륨 슬라이더, 뮤트 토글)
 - [x] 로비 화면 레이아웃 변경 (왼쪽: 플레이어, 오른쪽: 버튼)
 - [x] 로비 화면 버튼 (시작하기, 방코드, 나가기)
 - [x] 로비 화면 방 코드 호버 이미지
@@ -343,5 +398,4 @@ const AVATAR_LIST = [
 - [ ] 버튼 호버 상태 이미지 (활성화 버전)
 - [ ] 결과 화면 장식 요소 (좌/우측 아바타, 사생활 데코)
 - [ ] 이모티콘 창 배경
-- [ ] 추가 아바타 이미지
 - [ ] 커스텀 이모티콘 이미지

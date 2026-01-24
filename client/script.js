@@ -27,6 +27,14 @@ const waitMsgLobby = $("wait-msg-lobby");
 // BGM
 const bgm = $("bgm");
 
+// Menu (설정 메뉴)
+const menuToggle = $("menu-toggle");
+const menuPanel = $("menu-panel");
+const menuClose = $("menu-close");
+const menuOverlay = $("menu-overlay");
+const bgmVolumeSlider = $("bgm-volume");
+const bgmVolumeValue = $("bgm-volume-value");
+const bgmMuteToggle = $("bgm-mute-toggle");
 
 // lobby
 const displayRoomCode = $("display-room-code");
@@ -525,14 +533,21 @@ function updateSidebarPlayerStatus(players, writingStatus) {
 }
 
 // ---- 아바타 관련 ----
-// 아바타 목록 - 새 아바타 추가 시 아래 배열에 추가하면 됩니다
+// 아바타 목록 - 12개의 동물 캐릭터
 // type: "image" = 커스텀 이미지 (경로)
-// 예: { id: "avatar2", type: "image", content: "/image/01_메인화면/아바타2.png" }
 const AVATAR_LIST = [
-  { id: "avatar1", type: "image", content: "/image/01_메인화면/아바타.png" },
-  // 새 아바타 추가 예시:
-  // { id: "avatar2", type: "image", content: "/image/01_메인화면/아바타2.png" },
-  // { id: "avatar3", type: "image", content: "/image/01_메인화면/아바타3.png" },
+  { id: "bear", type: "image", content: "/image/01_메인화면/Char_Bear.png", name: "곰" },
+  { id: "cat", type: "image", content: "/image/01_메인화면/Char_Cat.png", name: "고양이" },
+  { id: "dog", type: "image", content: "/image/01_메인화면/Char_Dog.png", name: "강아지" },
+  { id: "dragon", type: "image", content: "/image/01_메인화면/Char_Dragon.png", name: "용" },
+  { id: "fox", type: "image", content: "/image/01_메인화면/Char_Fox.png", name: "여우" },
+  { id: "frog", type: "image", content: "/image/01_메인화면/Char_Frog.png", name: "개구리" },
+  { id: "koala", type: "image", content: "/image/01_메인화면/Char_Koala.png", name: "코알라" },
+  { id: "panda", type: "image", content: "/image/01_메인화면/Char_Panda.png", name: "판다" },
+  { id: "penguin", type: "image", content: "/image/01_메인화면/Char_Penguin.png", name: "펭귄" },
+  { id: "pig", type: "image", content: "/image/01_메인화면/Char_Pig.png", name: "돼지" },
+  { id: "rabbit", type: "image", content: "/image/01_메인화면/Char_Rabbit.png", name: "토끼" },
+  { id: "tiger", type: "image", content: "/image/01_메인화면/Char_Tiger.png", name: "호랑이" },
 ];
 
 // 아바타 목록 렌더링
@@ -2142,8 +2157,11 @@ btnResultClap?.addEventListener("click", () => {
 });
 
 // ---- BGM 초기화 ----
+let bgmMuted = false;
+let bgmVolume = 0.3;
+
 if (bgm) {
-  bgm.volume = 0.3;
+  bgm.volume = bgmVolume;
 }
 
 // 첫 상호작용 후 BGM 재생
@@ -2160,6 +2178,75 @@ function startBGM() {
 document.addEventListener("click", startBGM, { once: false });
 document.addEventListener("touchstart", startBGM, { once: false });
 document.addEventListener("keydown", startBGM, { once: false });
+
+// ---- 메뉴 기능 ----
+function openMenu() {
+  menuPanel?.classList.remove("hidden");
+  menuOverlay?.classList.remove("hidden");
+}
+
+function closeMenu() {
+  menuPanel?.classList.add("hidden");
+  menuOverlay?.classList.add("hidden");
+}
+
+// 메뉴 열기/닫기
+menuToggle?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  openMenu();
+});
+
+menuClose?.addEventListener("click", closeMenu);
+menuOverlay?.addEventListener("click", closeMenu);
+
+// ESC 키로 메뉴 닫기
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !menuPanel?.classList.contains("hidden")) {
+    closeMenu();
+  }
+});
+
+// BGM 볼륨 슬라이더
+bgmVolumeSlider?.addEventListener("input", (e) => {
+  const value = parseInt(e.target.value);
+  bgmVolume = value / 100;
+
+  if (bgm && !bgmMuted) {
+    bgm.volume = bgmVolume;
+  }
+
+  if (bgmVolumeValue) {
+    bgmVolumeValue.textContent = `${value}%`;
+  }
+});
+
+// BGM 뮤트 토글
+function updateMuteButton() {
+  if (!bgmMuteToggle) return;
+
+  if (bgmMuted) {
+    bgmMuteToggle.textContent = "OFF";
+    bgmMuteToggle.classList.remove("on");
+    bgmMuteToggle.classList.add("off");
+  } else {
+    bgmMuteToggle.textContent = "ON";
+    bgmMuteToggle.classList.remove("off");
+    bgmMuteToggle.classList.add("on");
+  }
+}
+
+bgmMuteToggle?.addEventListener("click", () => {
+  bgmMuted = !bgmMuted;
+
+  if (bgm) {
+    bgm.volume = bgmMuted ? 0 : bgmVolume;
+  }
+
+  updateMuteButton();
+});
+
+// 초기 뮤트 버튼 상태 설정
+updateMuteButton();
 
 // ---- 초기화 ----
 renderEmojiList();

@@ -59,6 +59,199 @@ body {
 }
 
 /* --------------------
+   Menu (설정 메뉴)
+-------------------- */
+.menu-toggle-btn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 1100;
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  border: none;
+  background: var(--card-bg);
+  color: var(--text-white);
+  font-size: 1.5rem;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s, background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.menu-toggle-btn:hover {
+  transform: scale(1.1);
+  background: #475569;
+}
+
+.menu-icon {
+  line-height: 1;
+}
+
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1150;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.menu-overlay:not(.hidden) {
+  opacity: 1;
+}
+
+.menu-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100%;
+  background: var(--card-bg);
+  z-index: 1200;
+  box-shadow: 5px 0 25px rgba(0, 0, 0, 0.4);
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-panel:not(.hidden) {
+  transform: translateX(0);
+}
+
+.menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #475569;
+}
+
+.menu-header h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  color: var(--text-white);
+}
+
+.menu-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: #475569;
+  color: var(--text-white);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-close-btn:hover {
+  background: #64748b;
+}
+
+.menu-content {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.menu-item {
+  margin-bottom: 25px;
+}
+
+.menu-item label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.menu-label {
+  font-size: 1rem;
+  color: var(--text-white);
+}
+
+.volume-value {
+  font-size: 0.9rem;
+  color: var(--accent-yellow);
+  font-weight: bold;
+}
+
+.volume-slider {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: #475569;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-yellow);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-yellow);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.mute-toggle-btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  width: auto;
+}
+
+.mute-toggle-btn.on {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.mute-toggle-btn.off {
+  background: #64748b;
+  color: #94a3b8;
+}
+
+.mute-toggle-btn:hover {
+  transform: scale(1.05);
+}
+
+/* --------------------
    Card
 -------------------- */
 .card {
@@ -1205,16 +1398,16 @@ button:disabled {
 }
 
 .avatar-list {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   margin-top: 10px;
+  max-width: 280px;
 }
 
 .avatar-item {
-  width: 60px;
-  height: 60px;
+  width: 55px;
+  height: 55px;
   border-radius: 50%;
   border: 3px solid transparent;
   cursor: pointer;

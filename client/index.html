@@ -6,6 +6,37 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- 메뉴 버튼 (상단 왼쪽) -->
+  <button id="menu-toggle" class="menu-toggle-btn" title="메뉴">
+    <span class="menu-icon">☰</span>
+  </button>
+
+  <!-- 메뉴 패널 -->
+  <div id="menu-panel" class="menu-panel hidden">
+    <div class="menu-header">
+      <h3>설정</h3>
+      <button id="menu-close" class="menu-close-btn">✕</button>
+    </div>
+    <div class="menu-content">
+      <!-- BGM 볼륨 설정 -->
+      <div class="menu-item">
+        <label for="bgm-volume">
+          <span class="menu-label">🎵 BGM 볼륨</span>
+          <span id="bgm-volume-value" class="volume-value">30%</span>
+        </label>
+        <input type="range" id="bgm-volume" class="volume-slider" min="0" max="100" value="30">
+      </div>
+      <!-- BGM 뮤트 토글 -->
+      <div class="menu-item">
+        <label class="menu-label">🔊 BGM</label>
+        <button id="bgm-mute-toggle" class="mute-toggle-btn">ON</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 메뉴 오버레이 (배경 클릭 시 닫기) -->
+  <div id="menu-overlay" class="menu-overlay hidden"></div>
+
   <!-- 전역 로고 (모든 화면에서 중앙 상단에 표시) -->
   <div id="global-logo">
     <img src="/image/00_전체/로고.png" alt="내 친구의 사생활" class="global-logo-img">
