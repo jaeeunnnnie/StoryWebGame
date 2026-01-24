@@ -21,8 +21,11 @@ const btnJoinRoom = $("btn-join-room");
 const roomCodeInput = $("input-room-code");
 const btnJoin = $("btn-join"); // Go! 버튼 (중요)
 const hostControls = $("host-controls");
-const btnCopy = $("btn-copy");
+const roomCodeDisplay = $("room-code-display"); // 방 코드 표시 컨테이너 (클릭 시 복사)
 const waitMsgLobby = $("wait-msg-lobby");
+
+// BGM
+const bgm = $("bgm");
 
 
 // lobby
@@ -54,7 +57,6 @@ const chatContainer = $("chat-container");
 const storyProgress = $("story-progress");
 const progressText = $("progress-text");
 const btnPrev = $("btn-prev");
-const btnSkipSentence = $("btn-skip-sentence");
 const btnNextStory = $("btn-next-story");
 const btnRestart = $("btn-restart");
 const btnScreenshot = $("btn-screenshot");
@@ -62,9 +64,13 @@ const btnScreenshot = $("btn-screenshot");
 // player status (작성 상태)
 const playerStatusList = $("player-status-list");
 
-// player sidebar (양쪽 플레이어 사이드바)
+// player sidebar (양쪽 플레이어 사이드바 - 스토리 화면)
 const playersLeft = $("players-left");
 const playersRight = $("players-right");
+
+// player sidebar (양쪽 플레이어 사이드바 - 키워드 화면)
+const promptsPlayersLeft = $("prompts-players-left");
+const promptsPlayersRight = $("prompts-players-right");
 
 // emoji (이모티콘)
 const btnEmojiToggle = $("btn-emoji-toggle");
@@ -188,15 +194,33 @@ function renderPlayers(players, hostId) {
     div.className = "player-card";
     const isHost = p.id === hostId;
     const promptDone = p.submitted?.prompts ? " (제시어 완료)" : "";
-    
-    // 이름 잘림 처리 (CSS로 처리되지만 안전장치)
+
+    // 아바타 표시
+    const avatarDiv = document.createElement("div");
+    avatarDiv.className = "player-avatar";
+    const avatar = getAvatarById(p.avatar);
+    if (avatar) {
+      if (avatar.type === "image") {
+        avatarDiv.innerHTML = `<img src="${avatar.content}" alt="${avatar.id}">`;
+      } else {
+        avatarDiv.textContent = avatar.content;
+      }
+    } else {
+      avatarDiv.textContent = "?";
+    }
+
+    // 이름 표시
+    const nameDiv = document.createElement("div");
+    nameDiv.className = "player-name";
     let displayName = p.name;
     if (getVisualLength(displayName) > 16) {
       displayName = displayName.substring(0, 10) + "...";
     }
+    nameDiv.textContent = `${displayName}${isHost ? " (방장)" : ""}${promptDone}`;
+    nameDiv.title = p.name;
 
-    div.textContent = `${displayName}${isHost ? " (방장)" : ""}${promptDone}`;
-    div.title = p.name; // 툴팁으로 전체 이름 표시
+    div.appendChild(avatarDiv);
+    div.appendChild(nameDiv);
     playerList.appendChild(div);
   });
 }
@@ -280,7 +304,7 @@ function renderPlayerSidebars(players, writingStatus) {
 
   playerArray.forEach((p, index) => {
     const isLeftSide = index < leftCount;
-    const playerDiv = createSidebarPlayer(p, writingStatus, isLeftSide);
+    const playerDiv = createSidebarPlayer(p, writingStatus, isLeftSide, "story");
 
     if (isLeftSide) {
       playersLeft.appendChild(playerDiv);
@@ -290,9 +314,71 @@ function renderPlayerSidebars(players, writingStatus) {
   });
 }
 
+// 키워드 화면용 플레이어 사이드바 렌더링
+function renderPromptsSidebars(players, writingStatus) {
+  if (!promptsPlayersLeft || !promptsPlayersRight) return;
+
+  promptsPlayersLeft.innerHTML = "";
+  promptsPlayersRight.innerHTML = "";
+
+  const playerArray = players || [];
+  const totalPlayers = playerArray.length;
+
+  // 홀수면 왼쪽이 하나 더 많게
+  const leftCount = Math.ceil(totalPlayers / 2);
+
+  playerArray.forEach((p, index) => {
+    const isLeftSide = index < leftCount;
+    const playerDiv = createSidebarPlayer(p, writingStatus, isLeftSide, "prompts");
+
+    if (isLeftSide) {
+      promptsPlayersLeft.appendChild(playerDiv);
+    } else {
+      promptsPlayersRight.appendChild(playerDiv);
+    }
+  });
+}
+
+// 키워드 화면 사이드바 상태 업데이트
+function updatePromptsSidebarStatus(players, writingStatus) {
+  if (!promptsPlayersLeft || !promptsPlayersRight) return;
+
+  (players || []).forEach((p) => {
+    const playerDiv = promptsPlayersLeft.querySelector(`[data-player-id="${p.id}"]`) ||
+                      promptsPlayersRight.querySelector(`[data-player-id="${p.id}"]`);
+
+    if (!playerDiv) return;
+
+    const isDone = p.submitted?.prompts === true;
+    const isWritingNow = writingStatus?.[p.id] === true;
+
+    // 클래스 업데이트
+    playerDiv.classList.remove("done", "writing");
+    if (isDone) {
+      playerDiv.classList.add("done");
+    } else if (isWritingNow) {
+      playerDiv.classList.add("writing");
+    }
+
+    // 상태 텍스트 업데이트
+    const statusDiv = playerDiv.querySelector(".player-status");
+    if (statusDiv) {
+      if (isDone) {
+        statusDiv.innerHTML = '<img src="/image/04_스토리 적기/작성완료.png" class="sidebar-status-icon" alt="완료"> 완료';
+      } else if (isWritingNow) {
+        statusDiv.innerHTML = '<img src="/image/04_스토리 적기/작성중.png" class="sidebar-status-icon" alt="작성중"> 작성중';
+      } else {
+        statusDiv.innerHTML = '<img src="/image/04_스토리 적기/생각중.png" class="sidebar-status-icon" alt="생각중"> 생각중';
+      }
+    }
+  });
+}
+
 // 사이드바 플레이어 요소 생성
-function createSidebarPlayer(player, writingStatus, isLeftSide) {
-  const isDone = player.submitted?.story === true;
+// screenType: "story" (스토리 화면) 또는 "prompts" (키워드 화면)
+function createSidebarPlayer(player, writingStatus, isLeftSide, screenType = "story") {
+  const submittedField = screenType === "prompts" ? "prompts" : "story";
+  const isDone = player.submitted?.[submittedField] === true;
   const isWritingNow = writingStatus?.[player.id] === true;
   const isMe = player.id === socket.id;
 
@@ -371,30 +457,15 @@ function createSidebarPlayer(player, writingStatus, isLeftSide) {
         emojiPickerDiv.style.transform = "";
 
         if (isLeftSide) {
-           // Left Sidebar -> Try opening to the LEFT (as per requirement?) or RIGHT (standard)?
-           // Request: "Left-aligned Profile: The emoticon window should open to the left of the profile."
-           // If I open to the left of a left-aligned profile, it goes off screen.
-           // I'll assume "Left-aligned" means "RelativeToParent: Left".
-           
-           // Let's try to position it to the RIGHT for LeftSidebar (standard UI) 
-           // but check constraints.
-           
-           // If strictly following "Open to the Left":
-           // emojiPickerDiv.style.right = "100%"; 
-           // emojiPickerDiv.style.left = "auto";
-           
-           // Let's default to: Left Sidebar -> Open Right (inwards). Right Sidebar -> Open Left (inwards).
-           // If user specifically meant "Left of the profile" literally, I'd do that, but it's unusable.
-           // I will implement "Dynamic positioning... based on horizontal alignment".
-           
-           emojiPickerDiv.style.left = "105%"; // Open to the right
-           emojiPickerDiv.style.right = "auto";
+           // Left Sidebar -> Open to the LEFT (same side as profile)
+           emojiPickerDiv.style.right = "105%"; // Open to the left
+           emojiPickerDiv.style.left = "auto";
            emojiPickerDiv.style.top = "0";
            emojiPickerDiv.style.transform = "none";
         } else {
-           // Right Sidebar -> Open Left
-           emojiPickerDiv.style.right = "105%"; // Open to the left
-           emojiPickerDiv.style.left = "auto";
+           // Right Sidebar -> Open to the RIGHT (same side as profile)
+           emojiPickerDiv.style.left = "105%"; // Open to the right
+           emojiPickerDiv.style.right = "auto";
            emojiPickerDiv.style.top = "0";
            emojiPickerDiv.style.transform = "none";
         }
@@ -454,17 +525,14 @@ function updateSidebarPlayerStatus(players, writingStatus) {
 }
 
 // ---- 아바타 관련 ----
-// 아바타 목록 (나중에 커스텀 이미지로 교체 가능)
-// type: "emoji" = 기본 이모지, "image" = 커스텀 이미지 (경로)
+// 아바타 목록 - 새 아바타 추가 시 아래 배열에 추가하면 됩니다
+// type: "image" = 커스텀 이미지 (경로)
+// 예: { id: "avatar2", type: "image", content: "/image/01_메인화면/아바타2.png" }
 const AVATAR_LIST = [
-  { id: "avatar1", type: "emoji", content: "😊" },
-  { id: "avatar2", type: "emoji", content: "😎" },
-  { id: "avatar3", type: "emoji", content: "🤓" },
-  { id: "avatar4", type: "emoji", content: "😈" },
-  { id: "avatar5", type: "emoji", content: "🐱" },
-  { id: "avatar6", type: "emoji", content: "🐶" },
-  { id: "avatar7", type: "emoji", content: "🦊" },
-  { id: "avatar8", type: "emoji", content: "🐸" },
+  { id: "avatar1", type: "image", content: "/image/01_메인화면/아바타.png" },
+  // 새 아바타 추가 예시:
+  // { id: "avatar2", type: "image", content: "/image/01_메인화면/아바타2.png" },
+  // { id: "avatar3", type: "image", content: "/image/01_메인화면/아바타3.png" },
 ];
 
 // 아바타 목록 렌더링
@@ -621,14 +689,20 @@ function displayReceivedEmoji(senderId, senderName, emojiId) {
   const emoji = EMOJI_LIST.find(e => e.id === emojiId);
   if (!emoji) return;
 
-  // 사이드바에서 해당 플레이어 찾기
+  // 사이드바에서 해당 플레이어 찾기 (스토리 화면 + 키워드 화면 모두 검색)
   const playerDiv = playersLeft?.querySelector(`[data-player-id="${senderId}"]`) ||
-                    playersRight?.querySelector(`[data-player-id="${senderId}"]`);
+                    playersRight?.querySelector(`[data-player-id="${senderId}"]`) ||
+                    promptsPlayersLeft?.querySelector(`[data-player-id="${senderId}"]`) ||
+                    promptsPlayersRight?.querySelector(`[data-player-id="${senderId}"]`);
 
   if (playerDiv) {
     // 플레이어가 어느 사이드바에 있는지 확인
-    const isLeftSide = playersLeft?.contains(playerDiv);
-    const parentSidebar = isLeftSide ? playersLeft : playersRight;
+    const isLeftSide = playersLeft?.contains(playerDiv) || promptsPlayersLeft?.contains(playerDiv);
+    let parentSidebar;
+    if (playersLeft?.contains(playerDiv)) parentSidebar = playersLeft;
+    else if (playersRight?.contains(playerDiv)) parentSidebar = playersRight;
+    else if (promptsPlayersLeft?.contains(playerDiv)) parentSidebar = promptsPlayersLeft;
+    else parentSidebar = promptsPlayersRight;
 
     // 플레이어 위치 가져오기
     const playerRect = playerDiv.getBoundingClientRect();
@@ -1351,12 +1425,6 @@ function updateResultButtons(isAnimating = false) {
     }
   }
 
-  // 스킵 버튼 (애니메이션 중일 때만 표시, 모든 사용자)
-  if (btnSkipSentence) {
-    btnSkipSentence.disabled = allDisplayed;
-    btnSkipSentence.classList.toggle("hidden", allDisplayed);
-  }
-
   // 다시하기 버튼 (마지막 스토리에서 모든 문장 표시 완료 시, 방장만)
   if (btnRestart) {
     btnRestart.classList.toggle("hidden", !(isLastStory && allDisplayed && isHost));
@@ -1424,8 +1492,8 @@ if (state.phase === "lobby") {
       input.value = "";
     });
 
-    // 플레이어 작성 상태 렌더링
-    renderPromptStatus(state.players, {});
+    // 플레이어 사이드바 렌더링 (키워드 화면)
+    renderPromptsSidebars(state.players, {});
 
     if (btnSubmitPrompts) btnSubmitPrompts.disabled = false;
     if (waitMsg) waitMsg.classList.add("hidden");
@@ -1591,6 +1659,7 @@ socket.on("game:restarted", () => {
 socket.on("prompt:writingStatus", ({ writingStatus }) => {
   if (currentRoomState && currentRoomState.players) {
     renderPromptStatus(currentRoomState.players, writingStatus);
+    updatePromptsSidebarStatus(currentRoomState.players, writingStatus);
   }
 });
 
@@ -1783,8 +1852,8 @@ btnStart?.addEventListener("click", () => {
   });
 });
 
-// 방 코드 복사
-btnCopy?.addEventListener("click", async () => {
+// 방 코드 복사 (방 코드 컨테이너 클릭 시)
+roomCodeDisplay?.addEventListener("click", async () => {
   const roomId = currentRoomState?.roomId;
   if (!roomId) return alertError("복사할 방 코드가 없어!");
 
@@ -1863,25 +1932,6 @@ btnNextStory?.addEventListener("click", () => {
 
 btnPrev?.addEventListener("click", () => {
   goPrevStory();
-});
-
-// 문장 스킵 버튼
-btnSkipSentence?.addEventListener("click", () => {
-  const chains = resultData?.chains || [];
-  const chain = chains[currentChainIndex];
-  if (!chain) return;
-
-  const entries = chain.entries || [];
-
-  // 모든 문장이 이미 표시되었으면 무시
-  if (displayedEntryCount >= entries.length) return;
-
-  // 현재 TTS 및 애니메이션 취소 (중요: cancelTTS 호출로 콜백 무효화)
-  cancelTTS();
-  stopChatAnimation();
-
-  // 다음 문장 즉시 표시
-  showNextChatMessage(entries, displayedEntryCount);
 });
 
 // 키보드 네비게이션 (결과 화면에서, 방장만)
@@ -2090,6 +2140,26 @@ btnResultThumbsup?.addEventListener("click", () => {
 btnResultClap?.addEventListener("click", () => {
   sendResultEmoji("clap");
 });
+
+// ---- BGM 초기화 ----
+if (bgm) {
+  bgm.volume = 0.3;
+}
+
+// 첫 상호작용 후 BGM 재생
+let bgmStarted = false;
+function startBGM() {
+  if (bgmStarted || !bgm) return;
+  bgmStarted = true;
+  bgm.play().catch((e) => {
+    console.warn("BGM 자동 재생 실패:", e);
+  });
+}
+
+// 모든 클릭/터치 이벤트에서 BGM 시작 시도
+document.addEventListener("click", startBGM, { once: false });
+document.addEventListener("touchstart", startBGM, { once: false });
+document.addEventListener("keydown", startBGM, { once: false });
 
 // ---- 초기화 ----
 renderEmojiList();

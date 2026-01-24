@@ -37,6 +37,28 @@ body {
 }
 
 /* --------------------
+   Global Logo (모든 화면 상단 중앙)
+-------------------- */
+#global-logo {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.global-logo-img {
+  max-width: 300px;
+  height: auto;
+}
+
+/* body와 #app 간격 조정 (로고 공간 확보) */
+#app {
+  padding-top: 120px;
+}
+
+/* --------------------
    Card
 -------------------- */
 .card {
@@ -165,8 +187,40 @@ button:disabled {
   text-align: left;
 }
 
-.nickname-section input {
-  margin-bottom: 0;
+.nickname-label-wrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.nickname-label-bg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.nickname-label-wrapper input {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  background: transparent;
+  border: none;
+  color: #333;
+  font-size: 1rem;
+  font-weight: bold;
+  text-align: center;
+  padding: 8px;
+  margin: 0;
+}
+
+.nickname-label-wrapper input::placeholder {
+  color: #888;
+}
+
+.nickname-label-wrapper input:focus {
+  outline: none;
 }
 
 .entry-buttons {
@@ -232,8 +286,111 @@ button:disabled {
 }
 
 /* --------------------
+   Lobby Layout (새 로비 레이아웃)
+-------------------- */
+.lobby-container {
+  display: flex;
+  gap: 40px;
+  padding: 2rem;
+  background: var(--card-bg);
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+  min-width: 700px;
+}
+
+.lobby-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.lobby-left h2 {
+  margin-bottom: 15px;
+  color: #334155;
+}
+
+.lobby-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  min-width: 200px;
+}
+
+/* 플레이어 목록 (세로 정렬) */
+.player-list-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.player-list-vertical .player-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 15px;
+  background: rgba(255, 255, 255, 0.7);
+  color: #1e293b;
+  border-radius: 10px;
+}
+
+.player-list-vertical .player-card .player-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  overflow: hidden;
+}
+
+.player-list-vertical .player-card .player-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.player-list-vertical .player-card .player-name {
+  font-weight: bold;
+}
+
+/* 로비 버튼 스타일 */
+.lobby-right .image-btn {
+  width: auto;
+}
+
+.lobby-right #host-controls {
+  width: 100%;
+}
+
+.lobby-right #host-controls .image-btn {
+  width: 100%;
+}
+
+/* --------------------
    Prompts (새로운 카드 디자인)
 -------------------- */
+/* 키워드 입력 화면 레이아웃 (스토리 화면과 동일) */
+.prompts-layout {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 20px;
+  width: 100%;
+  max-width: 1400px;
+}
+
+.prompts-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .prompt-container {
   position: relative;
   display: flex;
@@ -357,14 +514,58 @@ button:disabled {
 /* --------------------
    Results (채팅방 스타일)
 -------------------- */
+/* 결과 화면 전체 래퍼 */
+.results-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  width: 100%;
+  max-width: 900px;
+}
+
 .results-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 15px;
-  width: 100%;
-  max-width: 700px;
+  flex: 1;
   padding: 20px;
+}
+
+/* 오른쪽 사이드 컨트롤 버튼 */
+.results-side-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 10px;
+  align-items: center;
+}
+
+.result-side-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  transition: transform 0.3s ease;
+  width: auto;
+}
+
+.result-side-btn img {
+  width: 120px;
+  height: auto;
+  display: block;
+}
+
+.result-side-btn:hover {
+  transform: rotate(5deg) scale(1.05);
+}
+
+.result-side-btn:active {
+  transform: rotate(3deg) scale(0.98);
+}
+
+.result-side-btn.hidden {
+  display: none;
 }
 
 .story-title {
@@ -536,6 +737,59 @@ button:disabled {
 .story-main {
   flex: 1;
   max-width: 650px;
+}
+
+/* 스토리 입력란 (입력란.png 배경) */
+.story-input-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.story-input-wrapper {
+  position: relative;
+  flex: 1;
+}
+
+.story-input-bg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.story-input-wrapper textarea {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 85%;
+  height: 70%;
+  background: transparent;
+  border: none;
+  color: #1e293b;
+  font-size: 1rem;
+  padding: 10px;
+  resize: none;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.story-input-wrapper textarea::placeholder {
+  color: #64748b;
+}
+
+.story-input-wrapper textarea:focus {
+  outline: none;
+}
+
+.story-input-row .image-btn {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.story-input-row .image-btn img {
+  height: 80px;
+  width: auto;
 }
 
 /* 플레이어 사이드바 */
@@ -1170,5 +1424,184 @@ button:disabled {
   height: 18px;
   vertical-align: middle;
   margin-right: 4px;
+}
+
+/* --------------------
+   Room Code Display (방 코드 호버 복사)
+-------------------- */
+.room-code-container {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  margin: 15px 0;
+  transition: transform 0.15s;
+}
+
+.room-code-container:hover {
+  transform: scale(1.05);
+}
+
+.room-code-container:active {
+  transform: scale(0.98);
+}
+
+.room-code-container .room-code-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #1e293b;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.room-code-container .room-code-img {
+  display: block;
+  width: 180px;
+  height: auto;
+}
+
+.room-code-container .room-code-hover-img {
+  display: none;
+  width: 180px;
+  height: auto;
+}
+
+.room-code-container:hover .room-code-img {
+  display: none;
+}
+
+.room-code-container:hover .room-code-hover-img {
+  display: block;
+}
+
+.room-code-container:hover .room-code-text {
+  display: none;
+}
+
+/* --------------------
+   Page-specific Notebook Backgrounds (페이지별 공책 배경)
+-------------------- */
+/* 메인 화면 (입장 화면) 공책 배경 */
+#screen-name .entry-container {
+  background-image: url('./image/01_메인화면/공책.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
+}
+
+/* 방 코드 입력 화면 공책 배경 */
+#screen-waiting .card {
+  background-image: url('./image/01_메인화면/공책.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
+}
+
+#screen-waiting .card h2 {
+  color: #334155;
+}
+
+#screen-waiting .card input {
+  background: rgba(255, 255, 255, 0.8);
+  color: #1e293b;
+  border-color: #94a3b8;
+}
+
+#screen-waiting .card button {
+  background: var(--accent-blue);
+  color: white;
+}
+
+/* 로비 화면 공책 배경 */
+#screen-lobby .lobby-container {
+  background-image: url('./image/02_로비/공책.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
+}
+
+/* 스토리 작성 화면 공책 배경 */
+#screen-story .story-main .card.wide {
+  background-image: url('./image/04_스토리 적기/공책.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
+}
+
+/* 결과 화면 채팅 컨테이너 공책 배경 */
+#screen-results .chat-container {
+  background-image: url('./image/05_엔딩/공책.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
+}
+
+/* 공책 배경 위 텍스트 가독성 개선 */
+#screen-name .entry-container,
+#screen-lobby .lobby-container {
+  color: #1e293b;
+}
+
+#screen-name .entry-container .subtitle,
+#screen-lobby .lobby-container h2,
+#screen-lobby .lobby-container .subtitle {
+  color: #334155;
+  text-shadow: none;
+}
+
+#screen-name .entry-container input {
+  background: rgba(255, 255, 255, 0.8);
+  color: #1e293b;
+  border-color: #94a3b8;
+}
+
+#screen-name .entry-container input::placeholder {
+  color: #64748b;
+}
+
+/* 로비 플레이어 카드 스타일 개선 */
+#screen-lobby .player-card {
+  background: rgba(255, 255, 255, 0.7);
+  color: #1e293b;
+}
+
+/* 스토리 작성 화면 텍스트 가독성 */
+#screen-story .story-main .card.wide h2,
+#screen-story .story-main .card.wide .subtitle {
+  color: #334155;
+  text-shadow: none;
+}
+
+#screen-story .story-main .card.wide #story-so-far {
+  background: rgba(255, 255, 255, 0.7);
+  color: #1e293b;
+}
+
+#screen-story .story-main .card.wide textarea {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1e293b;
+  border-color: #94a3b8;
+}
+
+#screen-story .story-main .card.wide textarea::placeholder {
+  color: #64748b;
+}
+
+/* 결과 화면 텍스트 가독성 */
+#screen-results .chat-container .chat-bubble {
+  background: rgba(255, 255, 255, 0.85);
+  color: #1e293b;
+}
+
+#screen-results .chat-container .chat-writer {
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 

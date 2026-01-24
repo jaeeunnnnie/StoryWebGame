@@ -6,13 +6,16 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- 전역 로고 (모든 화면에서 중앙 상단에 표시) -->
+  <div id="global-logo">
+    <img src="/image/00_전체/로고.png" alt="내 친구의 사생활" class="global-logo-img">
+  </div>
+
   <div id="app">
 
     <!-- 1. 입장 화면 (JS: screen-name) -->
     <section id="screen-name" class="screen">
       <div class="entry-container">
-        <img src="/image/00_전체/로고.png" alt="내 친구의 사생활" class="title-logo">
-
         <div class="entry-content">
           <!-- 왼쪽: 아바타 선택 -->
           <div class="entry-left">
@@ -30,7 +33,10 @@
           <div class="entry-right">
             <div class="nickname-section">
               <p class="subtitle">닉네임</p>
-              <input id="input-nickname" placeholder="닉네임 입력" maxlength="10">
+              <div class="nickname-label-wrapper">
+                <img src="/image/01_메인화면/작은견출지.png" alt="견출지" class="nickname-label-bg">
+                <input id="input-nickname" placeholder="닉네임 입력" maxlength="10">
+              </div>
             </div>
             <div class="entry-buttons">
               <button id="btn-create-room" class="image-btn">
@@ -56,70 +62,89 @@
 
     <!-- 3. 로비 -->
     <section id="screen-lobby" class="screen hidden">
-      <div class="card wide">
-        <h2>
-          대기실
-          <span id="display-room-code"></span>
-        </h2>
-
-        <div id="player-list" class="player-grid"></div>
-
-        <!-- 나가기 버튼: JS의 btnLeave 매칭 -->
-        <button id="btn-leave" class="image-btn" style="margin-top:10px;">
-          <img src="/image/02_로비/나가기 버튼.png" alt="나가기">
-        </button>
-
-        <!-- 게스트에서 깜빡임 방지: 기본 hidden -->
-        <div id="host-controls" class="hidden" style="margin-top:10px; display: flex; gap: 10px; justify-content: center;">
-          <button id="btn-copy" class="image-btn">
-            <img src="/image/02_로비/방 코드 버튼.png" alt="코드 복사">
-          </button>
-          <button id="btn-start" class="image-btn">
-            <img src="/image/02_로비/시작하기 버튼.png" alt="게임 시작">
-          </button>
+      <div class="lobby-container">
+        <!-- 왼쪽: 플레이어 목록 -->
+        <div class="lobby-left">
+          <h2>대기실</h2>
+          <div id="player-list" class="player-list-vertical"></div>
         </div>
 
-        <p id="wait-msg-lobby" class="hidden">
-          방장이 게임을 시작하기를 기다리는 중…
-        </p>
+        <!-- 오른쪽: 버튼들 (시작하기, 방코드, 나가기 순서) -->
+        <div class="lobby-right">
+          <!-- 시작하기 버튼 (방장만 보임) -->
+          <div id="host-controls" class="hidden">
+            <button id="btn-start" class="image-btn">
+              <img src="/image/02_로비/시작하기 버튼.png" alt="게임 시작">
+            </button>
+          </div>
+
+          <!-- 방 코드 표시 -->
+          <div id="room-code-display" class="room-code-container">
+            <span id="display-room-code" class="room-code-text"></span>
+            <img src="/image/02_로비/방 코드 버튼.png" alt="방 코드" class="room-code-img">
+            <img src="/image/02_로비/방 코드_호버 시_복사하기 버튼.png" alt="복사하기" class="room-code-hover-img">
+          </div>
+
+          <!-- 나가기 버튼 -->
+          <button id="btn-leave" class="image-btn">
+            <img src="/image/02_로비/나가기 버튼.png" alt="나가기">
+          </button>
+
+          <p id="wait-msg-lobby" class="hidden">
+            방장이 게임을 시작하기를 기다리는 중…
+          </p>
+        </div>
       </div>
     </section>
 
     <!-- 4. 카드 입력 -->
     <section id="screen-prompts" class="screen hidden">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h2 style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5); margin: 0;">3개의 카드를 만들어주세요</h2>
-        <div id="display-prompt-timer" style="font-size: 24px; font-weight: bold; color: #ff6b6b;">60s</div>
-      </div>
-      <p class="subtitle" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">당신의 카드가 스토리가 됩니다!</p>
+      <div class="prompts-layout">
+        <!-- 왼쪽 플레이어 사이드바 -->
+        <div id="prompts-players-left" class="player-sidebar player-sidebar-left"></div>
 
-      <div class="prompt-container">
-        <div class="note-background">
-          <div class="keyword-cards-wrapper">
-            <div class="keyword-card">
-              <img src="/image/03_키워드 적기/카드1.png" alt="카드1">
-              <input type="text" class="input-prompt" placeholder="코딩하는 기훈이">
-            </div>
-            <div class="keyword-card">
-              <img src="/image/03_키워드 적기/카드2.png" alt="카드2">
-              <input type="text" class="input-prompt" placeholder="비밀의 방">
-            </div>
-            <div class="keyword-card">
-              <img src="/image/03_키워드 적기/카드3.png" alt="카드3">
-              <input type="text" class="input-prompt" placeholder="마법의 주문">
+        <!-- 중앙 게임 영역 -->
+        <div class="prompts-main">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5); margin: 0;">3개의 카드를 만들어주세요</h2>
+            <div id="display-prompt-timer" style="font-size: 24px; font-weight: bold; color: #ff6b6b;">60s</div>
+          </div>
+          <p class="subtitle" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">당신의 카드가 스토리가 됩니다!</p>
+
+          <div class="prompt-container">
+            <div class="note-background">
+              <div class="keyword-cards-wrapper">
+                <div class="keyword-card">
+                  <img src="/image/03_키워드 적기/카드1.png" alt="카드1">
+                  <input type="text" class="input-prompt" placeholder="코딩하는 기훈이">
+                </div>
+                <div class="keyword-card">
+                  <img src="/image/03_키워드 적기/카드2.png" alt="카드2">
+                  <input type="text" class="input-prompt" placeholder="비밀의 방">
+                </div>
+                <div class="keyword-card">
+                  <img src="/image/03_키워드 적기/카드3.png" alt="카드3">
+                  <input type="text" class="input-prompt" placeholder="마법의 주문">
+                </div>
+              </div>
             </div>
           </div>
+
+          <button id="btn-submit-prompts" class="image-btn">
+            <img src="/image/03_키워드 적기/확인.png" alt="작성 완료">
+          </button>
+          <p id="wait-msg" class="hidden">다른 플레이어들을 기다리는 중...</p>
         </div>
+
+        <!-- 오른쪽 플레이어 사이드바 -->
+        <div id="prompts-players-right" class="player-sidebar player-sidebar-right"></div>
       </div>
 
-      <button id="btn-submit-prompts" class="image-btn">
-        <img src="/image/03_키워드 적기/확인.png" alt="작성 완료">
-      </button>
-      <p id="wait-msg" class="hidden">다른 플레이어들을 기다리는 중...</p>
+      <!-- 받은 이모티콘 표시 (키워드 화면용) -->
+      <div id="prompts-emoji-display" class="emoji-display"></div>
 
-      <!-- 플레이어 작성 상태 -->
-      <div id="prompt-status-container" style="margin-top: 20px;">
-        <p class="subtitle">작성 상태</p>
+      <!-- 플레이어 작성 상태 (숨김 - 사이드바에서 표시) -->
+      <div id="prompt-status-container" class="hidden">
         <div id="prompt-status-list" class="player-status-list"></div>
       </div>
     </section>
@@ -150,17 +175,20 @@
 
             <div style="margin-top: 10px;">
               <p class="subtitle">이어쓰기</p>
-              <textarea
-                id="input-story-text"
-                rows="4"
-                style="width:100%; padding:12px; border-radius:8px; border:2px solid #475569; background:#1e293b; color:white; box-sizing:border-box;"
-                placeholder="여기에 문장을 입력하세요"
-              ></textarea>
+              <div class="story-input-row">
+                <div class="story-input-wrapper">
+                  <img src="/image/04_스토리 적기/입력란.png" alt="입력란" class="story-input-bg">
+                  <textarea
+                    id="input-story-text"
+                    rows="4"
+                    placeholder="여기에 문장을 입력하세요"
+                  ></textarea>
+                </div>
+                <button id="btn-submit-story" class="image-btn">
+                  <img src="/image/04_스토리 적기/제출.png" alt="제출">
+                </button>
+              </div>
             </div>
-
-            <button id="btn-submit-story" class="image-btn" style="margin-top: 10px;">
-              <img src="/image/04_스토리 적기/제출.png" alt="제출">
-            </button>
 
             <p id="story-wait-msg" class="hidden">다른 플레이어들을 기다리는 중...</p>
           </div>
@@ -181,41 +209,40 @@
 
     <!-- 6. 결과 (채팅방 스타일) -->
     <section id="screen-results" class="screen hidden">
-      <div class="results-container">
-        <!-- 스토리 제목 -->
-        <div id="story-title" class="story-title"></div>
+      <div class="results-wrapper">
+        <div class="results-container">
+          <!-- 스토리 제목 -->
+          <div id="story-title" class="story-title"></div>
 
-        <!-- 진행 표시 -->
-        <div id="story-progress" class="story-progress">
-          <span id="progress-text"></span>
+          <!-- 진행 표시 -->
+          <div id="story-progress" class="story-progress">
+            <span id="progress-text"></span>
+          </div>
+
+          <!-- 채팅방 스타일 문장 표시 영역 -->
+          <div id="chat-container" class="chat-container"></div>
+
+          <!-- 결과 화면 이모티콘 반응 버튼 -->
+          <div class="result-emoji-section">
+            <button id="btn-result-thumbsup" class="result-emoji-btn">👍</button>
+            <button id="btn-result-clap" class="result-emoji-btn">👏</button>
+          </div>
         </div>
 
-        <!-- 채팅방 스타일 문장 표시 영역 -->
-        <div id="chat-container" class="chat-container"></div>
-
-        <!-- 컨트롤 버튼 -->
-        <div class="results-controls">
-          <button id="btn-prev" class="image-btn">
-            <img src="/image/05_엔딩/이전 이야기로.png" alt="이전 스토리">
+        <!-- 오른쪽 하단 컨트롤 버튼 (위에서부터: 다시하기, 저장하기, 이전 이야기로, 다음 이야기로) -->
+        <div class="results-side-controls">
+          <button id="btn-restart" class="result-side-btn hidden">
+            <img src="/image/05_엔딩/다시하기.png" alt="다시하기">
           </button>
-          <button id="btn-skip-sentence" class="control-btn">⏩ 스킵</button>
-          <button id="btn-next-story" class="image-btn">
-            <img src="/image/05_엔딩/다음 이야기로.png" alt="다음 스토리">
+          <button id="btn-screenshot" class="result-side-btn">
+            <img src="/image/05_엔딩/저장하기.png" alt="저장하기">
           </button>
-          <button id="btn-screenshot" class="image-btn">
-            <img src="/image/05_엔딩/저장하기.png" alt="저장">
+          <button id="btn-prev" class="result-side-btn">
+            <img src="/image/05_엔딩/이전 이야기로.png" alt="이전 이야기로">
           </button>
-        </div>
-
-        <!-- 다시하기 버튼 (마지막에만, 방장만 표시) -->
-        <button id="btn-restart" class="image-btn hidden">
-          <img src="/image/05_엔딩/다시하기.png" alt="다시하기">
-        </button>
-
-        <!-- 결과 화면 이모티콘 반응 버튼 -->
-        <div class="result-emoji-section">
-          <button id="btn-result-thumbsup" class="result-emoji-btn">👍</button>
-          <button id="btn-result-clap" class="result-emoji-btn">👏</button>
+          <button id="btn-next-story" class="result-side-btn">
+            <img src="/image/05_엔딩/다음 이야기로.png" alt="다음 이야기로">
+          </button>
         </div>
       </div>
 
@@ -224,6 +251,11 @@
     </section>
 
   </div>
+
+  <!-- BGM -->
+  <audio id="bgm" loop>
+    <source src="/image/00_전체/Multi Game OST.mp3" type="audio/mpeg">
+  </audio>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="script.js"></script>
