@@ -11,6 +11,16 @@
    - accent-blue: 강조색 (파란색)
    - text-white: 기본 텍스트 색상
 -------------------- */
+
+/* 커스텀 폰트 불러오기 */
+@font-face {
+    font-family: 'NostalgicMongtori';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2601-1@1.0/Griun_Mongtori-Rg.woff2') format('woff2');
+    font-weight: normal;
+    font-display: swap;
+}
+
+
 :root {
   --bg-color: #1e293b;
   --card-bg: #334155;
@@ -1050,11 +1060,12 @@ button:disabled {
 
 /* 왼쪽 고정 폭 패널 (이모티콘 영역 조정) */
 #screen-results .results-left-panel {
-  width: 170px;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute;
+  left: -80px;    
+  top: 140px;       
+  width: auto;
+  height: auto;
+  z-index: 50;
 }
 
 /* 왼쪽 패널 내부 - 세로 정렬 */
@@ -1081,7 +1092,7 @@ button:disabled {
 #screen-results .results-right-panel {
   position: absolute;
   right: -80px; 
-  bottom: 140px;
+  bottom: 70px;
 }
 
 /* 오른쪽 사이드 컨트롤 버튼 세로 정렬  */
@@ -1127,45 +1138,75 @@ button:disabled {
   gap: 10px;
 }
 
+/* 스토리 진행도 - 공책 위에 고정 */
+#screen-results #story-progress {
+  position: absolute;
+  top: 75px;  
+  left: 90px;  
+  z-index: 30;
+
+  background: none;
+  padding: 0;
+  margin: 0;
+
+  font-family: 'NostalgicMongtori', cursive;
+  font-size: 1.8rem;
+  font-weight: normal;
+  color: #2F3569;
+}
+
+/* 스토리 제목 - 공책 상단 중앙에 고정 */
 #screen-results .story-title {
   position: absolute;
-  top: 60px;
+  top: 70px;
   left: 50%;
   transform: translateX(-50%);
 
   z-index: 20;
 
+  display: inline-block;   /* ::after 붙이기 위해 */
+  white-space: nowrap;     /* 제목 줄바꿈 방지 */
+
   background: none;       /* 박스 제거 */
   box-shadow: none;
   padding: 0;
 
-  font-size: 1.8rem;
-  color: #1e293b;         /* 종이 위 글씨 느낌 */
+  font-family: 'NostalgicMongtori', cursive;  
+  font-size: 2.9rem;
+  font-weight: normal;
+  color: #1e293b;
+}
+/* 스토리 제목 옆 비행기 장식 */
+#screen-results .story-title::after {
+  content: "";
+  display: inline-block;
+  width: 80px; 
+  height: 40px;
+  margin-left: 20px;     /* 제목과 간격 */
+  background: url("./image/05_엔딩/사생활 데코.png") no-repeat center / contain;
+  vertical-align: middle;
+  transform: translateY(-2px);
 }
 
+/* 결과 화면 아바타 */
+#screen-results .chat-avatar {
+  width: 64px;
+  height: 64px;
+}
 
-/* 작은 화면 대응 */
-@media (max-width: 900px) {
-  #screen-results .results-frame {
-    flex-direction: column;
-    height: auto;
-  }
+#screen-results .chat-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
-  #screen-results .results-left-panel,
-  #screen-results .results-right-panel {
-    width: 100%;
-    height: auto;
-  }
+/* 아바타-말풍선 간격 */
+#screen-results .chat-message {
+  gap: 14px;          
+}
 
-  #screen-results .results-side-controls--stack {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  #screen-results .results-container {
-    width: 92vw;
-  }
+#screen-results .chat-bubble {
+  font-size: 1.05rem; 
 }
 
 
@@ -1218,23 +1259,6 @@ button:disabled {
   transform: none;
 }
 
-/* 스토리 제목 */
-.story-title {
-  font-size: 1.6rem;
-  font-weight: bold;
-  color: var(--accent-yellow);
-  text-align: center;
-  padding: 12px 25px;
-  background: var(--card-bg);
-  border-radius: 15px;
-  animation: fadeIn 0.5s ease;
-}
-
-/* 스토리 진행 상황 표시 */
-.story-progress {
-  font-size: 0.9rem;
-  color: #94a3b8;
-}
 
 /* 채팅 컨테이너 - 메시지 표시 영역 */
 .chat-container {

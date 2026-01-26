@@ -1352,7 +1352,7 @@ function displayStory(chainIndex) {
 
   // 진행 상황 표시
   if (progressText) {
-    progressText.textContent = `스토리 ${chainIndex + 1} / ${totalStories}`;
+    progressText.textContent = `${chainIndex + 1} / ${totalStories}`;
   }
 
   // 채팅 컨테이너 초기화
@@ -1593,7 +1593,7 @@ if (state.phase === "lobby") {
 
     if (btnSubmitPrompts) btnSubmitPrompts.disabled = false;
     if (waitMsg) waitMsg.classList.add("hidden");
-    
+
     if (me?.submitted?.prompts) {
       if (btnSubmitPrompts) btnSubmitPrompts.disabled = true;
       if (waitMsg) waitMsg.classList.remove("hidden");
@@ -1941,7 +1941,7 @@ btnJoin?.addEventListener("click", () => {
   if (!ensureName()) return;
 
   const roomId = String(roomCodeInput?.value || "").trim();
-  if (!roomId) return alertError("방 코드를 입력해줘!");
+  if (!roomId) return alertError("그 방은 없는 방이에요… 🙀");
 
   socket.emit("room:join", { roomId, name: myName, avatar: myAvatar }, (res) => {
     if (!res?.ok) return alertError(`방 입장 실패: ${res?.error || "UNKNOWN"}`);
@@ -1970,7 +1970,7 @@ btnLeave?.addEventListener("click", () => {
 // 게임 시작
 btnStart?.addEventListener("click", () => {
   socket.emit("game:start", {}, (res) => {
-    if (!res?.ok) return alertError(`시작 실패: ${res?.error || "UNKNOWN"}`);
+    if (!res?.ok) return alertError(`${res?.error || "UNKNOWN"}`);
   });
 });
 
@@ -2361,3 +2361,4 @@ renderAvatarList();
 
 // ---- 초기 화면 ----
 showScreen(screenName);
+

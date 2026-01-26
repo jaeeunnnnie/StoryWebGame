@@ -980,7 +980,7 @@ io.on("connection", (socket) => {
       if (!room) return ack?.({ ok: false, error: "ROOM_NOT_FOUND" });
 
       if (socket.id !== room.hostId) return ack?.({ ok: false, error: "NOT_HOST" });
-      if (Object.keys(room.players).length < 2) return ack?.({ ok: false, error: "NEED_2_PLAYERS" });
+      if (Object.keys(room.players).length < 2) return ack?.({ ok: false, error: "2명 이상의 플레이어가 필요합니다!" });
     // 이미 카운트다운 중이면 중복 방지
     if (room.startCountdownInterval) {
       return ack?.({ ok: false, error: "COUNTDOWN_ALREADY_RUNNING" });
