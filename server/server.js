@@ -594,7 +594,7 @@ function startRound(roomId) {
 
   // ------------------------------------------------------------
   // 라운드 타이머
-  const TIMER_DURATION = 30;
+  const TIMER_DURATION = 45;
   let secondsLeft = TIMER_DURATION;
 
   // 기존 타이머 정리
@@ -720,7 +720,7 @@ function buildResultPayload(room) {
 function abortGame(roomId, reason) {
   const room = getRoom(roomId);
   if (!room) return;
-  
+
   // 시작 카운트다운 정리
   if (room.startCountdownInterval) {
     clearInterval(room.startCountdownInterval);
