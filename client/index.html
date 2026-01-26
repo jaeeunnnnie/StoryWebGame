@@ -178,7 +178,7 @@
         <div class="prompts-main">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <h2 style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5); margin: 0;">3개의 카드를 만들어주세요</h2>
-            <div id="display-prompt-timer" style="font-size: 24px; font-weight: bold; color: #ff6b6b;">60s</div>
+            <div id="display-prompt-timer">60s</div>
           </div>
 
           <div class="prompt-container">
@@ -222,65 +222,59 @@
     <!-- 5. 스토리 이어쓰기 -->
     <section id="screen-story" class="screen hidden">
       <div class="story-layout">
-        <!-- 왼쪽 플레이어 사이드바 -->
         <div id="players-left" class="player-sidebar player-sidebar-left"></div>
 
-        <!-- 중앙 게임 영역 -->
         <div class="story-main">
-          <div class="card wide">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-
-              <h2 id="round-label">
-                라운드 <span id="display-round">0</span> / <span id="display-total-rounds">0</span>
-              </h2>
-              
-              <div id="display-timer" style="font-size: 24px; font-weight: bold; color: #ff6b6b;">20s</div>
-            </div>
-
-            <!-- 맨 위: 지금까지의 이야기 -->
-            <div style="margin-top: 10px;">
-              <p class="subtitle">지금까지의 이야기</p>
-              <div id="story-so-far"></div>
-            </div>
-
-            <!-- 중간: 제시어 3개 (카드 이미지에) -->
-            <div style="margin-top: 10px;">
-              <p class="subtitle">이번 라운드 제시어</p>
-              <div id="my-inbox-prompts" class="story-keyword-cards"></div>
-            </div>
-
-            <!-- 아래: 입력창 -->
-            <div style="margin-top: 10px;">
-              <p class="subtitle">이어쓰기</p>
-              <div class="story-input-row">
-                <div class="story-input-wrapper">
-                  <img src="/image/04_스토리 적기/입력란.png" alt="입력란" class="story-input-bg">
-                  <textarea
-                    id="input-story-text"
-                    rows="4"
-                    placeholder="여기에 문장을 입력하세요"
-                  ></textarea>
-                </div>
-                <button id="btn-submit-story" class="image-btn">
-                  <img src="/image/04_스토리 적기/제출.png" alt="제출">
-                </button>
+          <div class="notebook-panel">
+            
+            <div class="notebook-header">
+              <div class="round-info">
+                <span id="display-round">1</span> / <span id="display-total-rounds">12</span>
+              </div>
+              <div class="timer-info">
+                <span id="display-timer">30s</span>
               </div>
             </div>
 
-            <p id="story-wait-msg" class="hidden">다른 플레이어들을 기다리는 중...</p>
+            <div class="notebook-body">
+              <div id="story-so-far" class="story-so-far-text"></div>
+
+              <div id="my-inbox-prompts" class="sticky-note-container"></div>
+            </div>
+
+            <div class="notebook-footer">
+              <div class="input-area-wrapper">
+                <span class="quote-mark left">"</span>
+                
+                <div class="input-bg-container">
+                  <img src="/image/04_스토리 적기/입력란.png" alt="입력란" class="input-line-img">
+                  <textarea
+                    id="input-story-text"
+                    rows="2"
+                    placeholder="여기에 문장을 입력하세요"
+                  ></textarea>
+                </div>
+
+                <span class="quote-mark right">"</span>
+                
+                <button id="btn-submit-story" class="plane-submit-btn">
+                  <img src="/image/04_스토리 적기/제출.png" alt="제출">
+                </button>
+              </div>
+              
+              <p id="story-wait-msg" class="hidden">다른 플레이어들을 기다리는 중...</p>
+            </div>
+
           </div>
         </div>
 
-        <!-- 오른쪽 플레이어 사이드바 -->
         <div id="players-right" class="player-sidebar player-sidebar-right"></div>
       </div>
 
-      <!-- 기존 플레이어 상태 (숨김 처리, JS 호환용) -->
       <div id="player-status-container" class="player-status-container hidden">
         <div id="player-status-list" class="player-status-list"></div>
       </div>
 
-      <!-- 받은 이모티콘 표시 -->
       <div id="emoji-display" class="emoji-display"></div>
     </section>
 

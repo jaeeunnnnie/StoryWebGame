@@ -1727,12 +1727,8 @@ socket.on("story:round", (payload) => {
 socket.on("prompt:timer", ({ secondsLeft }) => {
   if (displayPromptTimer) {
     displayPromptTimer.textContent = `${secondsLeft}s`;
-    // 10초 이하일 때 색상 변경
-    if (secondsLeft <= 10) {
-      displayPromptTimer.style.color = "#ef4444"; // 빨강
-    } else {
-      displayPromptTimer.style.color = "#ff6b6b";
-    }
+    // 색상 통일
+    displayPromptTimer.style.color = "#1e293b";
   }
 });
 

@@ -816,12 +816,12 @@ button:disabled {
    - 3개의 카드에 키워드 입력
 -------------------- */
 
-/* 1. 사이드바와 중앙 공책 사이의 간격 좁히기 */
+/* 1. 사이드바와 중앙 공책 사이의 간격 */
 .prompts-layout {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  gap: -30px; /* 기존 50px -> 10px로 축소 (더 가깝게 붙음) */
+  gap: 20px;
   width: 100%;
   max-width: 1200px;
 }
@@ -829,79 +829,55 @@ button:disabled {
 .prompts-main {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  justify-content: center;
   align-items: center;
+  position: relative;
 }
 
-/* 키워드 입력 제목 아래로 내리기 */
+/* 키워드 입력 제목 */
 #screen-prompts .prompts-main h2 {
-  position: relative;
-  top: 150px;
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   margin: 0 !important;
+  z-index: 10;
+  font-size: 1.5rem;
+  color: #1e293b;
+}
+
+/* 타이머 */
+#screen-prompts #display-prompt-timer {
+  position: absolute;
+  top: 80px;
+  right: 140px;
+  font-size: 1.5rem;
+  font-style: italic;
+  font-weight: bold;
+  color: #1e293b;
   z-index: 10;
 }
 
-/* 3. 확인 버튼 위로 올리기 */
+/* 확인 버튼 */
 #screen-prompts #btn-submit-prompts {
-  /* transform을 쓰면 레이아웃 흐름을 깨지 않고 시각적으로만 이동 가능 */
-  transform: translateY(-100px); /* 음수면 위로 올라감 */
-  margin-top: 0; /* 기존 마진 제거 */
-  position: relative;
-  z-index: 10; /* 공책이나 다른 요소 위에 뜨도록 */
-}
-
-/* 2. 타이머 텍스트 아래로 내리기 */
-#screen-prompts #display-prompt-timer {
-  /* Flex 정렬을 무시하고 위치를 조정하기 위해 relative 사용 */
-  position: relative;
-  top: 153px; /* 양수면 아래로 내려감 */
-  left: 15px; /* 오른쪽으로 이동 */
-  font-size: 24px;
-  font-weight: bold;
-  color: #ff6b6b;
-  z-index: 10
+  position: absolute;
+  bottom: 80px;
+  z-index: 10;
 }
 
 /* 키워드 카드 컨테이너 */
 .prompt-container {
-  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px;
-}
-
-/* 공책 배경 이미지 */
-.note-background {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  /* padding은 이미지 크기가 줄어들면 내부 공간 확보를 위해 같이 조절해주는 것이 좋습니다 */
-  padding: 40px 30px; 
-  
-  background-image: url('./image/03_키워드 적기/공책.png');
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  
-  /* --- 수정할 부분 --- */
-  width: 1400px; /* 원하는 크기로 이 값만 조절하세요 (예: 800px -> 600px) */
-  /* height를 고정 픽셀 대신 비율로 설정합니다. */
-  /* 공책 이미지의 대략적인 비율이 가로:세로 = 80:35 정도라면 아래처럼 설정 */
-  aspect-ratio: 800 / 350; 
-  height: auto; /* 비율에 맞춰 높이 자동 조절 */
-  /* ----------------- */
-
-  box-sizing: border-box;
 }
 
 /* 키워드 카드 3개 래퍼 */
 .keyword-cards-wrapper {
   display: flex;
   justify-content: center;
-  align-items: flex-start;
-  gap: 30px;
+  align-items: center;
+  gap: 40px;
 }
 
 /* 개별 키워드 카드 */
@@ -1039,11 +1015,17 @@ button:disabled {
    대기 메시지 (Wait Messages)
 -------------------- */
 #wait-msg-lobby,
-#wait-msg-prompts,
+#wait-msg,
 #story-wait-msg {
   color: var(--accent-yellow);
   font-weight: bold;
   margin-top: 15px;
+}
+
+#wait-msg {
+  position: absolute;
+  bottom: 20px;
+  margin-top: 0;
 }
 
 /* --------------------
@@ -1283,7 +1265,7 @@ button:disabled {
 
 /* --------------------
    스토리 작성 화면 레이아웃 (Story Layout)
-   - 좌우 사이드바 + 중앙 게임 영역
+   - 공책 디자인 및 내부 요소 배치
 -------------------- */
 .story-layout {
   display: flex;
@@ -1296,64 +1278,255 @@ button:disabled {
 
 .story-main {
   flex: 1;
-  max-width: 650px;
+  display: flex;
+  justify-content: center;
 }
 
-/* 스토리 입력란 - 입력 필드 + 제출 버튼 */
-.story-input-row {
+/* 공책 배경 공통 스타일 (스토리 적기, 키워드 적기) */
+.notebook-panel,
+.note-background {
+  position: relative;
+  width: 900px;
+  aspect-ratio: 900 / 600;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  padding: 80px 100px;
+  box-sizing: border-box;
   display: flex;
+}
+
+/* 공책 배경 이미지 */
+.notebook-panel {
+  background-image: url('./image/04_스토리 적기/공책.png');
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.note-background {
+  background-image: url('./image/03_키워드 적기/공책.png');
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 1. 상단 헤더 (라운드 / 타이머) */
+.notebook-header {
+  display: flex;
+  justify-content: space-between;
   align-items: flex-start;
+  font-family: 'Arial', sans-serif; /* 필요시 손글씨 폰트로 변경 */
+  font-weight: bold;
+  color: #1e293b;
+  font-size: 1.2rem;
+  margin-bottom: 20px;
+  padding: 0 10px;
+}
+
+/* 라운드 정보 - 개별 위치 조정 가능 */
+.round-info {
+  position: relative;
+  top: -20px;
+  left: 70px;
+}
+
+/* 타이머 정보 - 개별 위치 조정 가능 */
+.timer-info {
+  position: relative;
+  top: -20px;
+  right: 30px;
+}
+
+.timer-info span {
+  font-size: 1.5rem;
+  font-style: italic;
+  color: #1e293b;
+}
+
+/* 2. 중앙 바디 (이전 스토리 + 포스트잇) */
+.notebook-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 20px;
   gap: 15px;
 }
 
-.story-input-wrapper {
-  position: relative;
-  flex: 1;
+/* 이전 이야기 텍스트 (작게 표시) */
+.story-so-far-text {
+  font-size: 2rem;
+  color: #1e293b;
+  text-align: center;
+  margin-bottom: 5px;
+  margin-top: -40px;
+  max-width: 80%;
+  line-height: 1.4;
 }
 
-/* 스토리 입력란 배경 이미지 */
-.story-input-bg {
+/* 포스트잇 컨테이너 */
+.sticky-note-container {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
   width: 100%;
-  height: auto;
-  display: block;
-  object-fit: contain;
+  margin-top: 20px;
 }
 
-/* 스토리 텍스트 영역 - 배경 이미지 위에 배치 */
-.story-input-wrapper textarea {
+/* 개별 포스트잇 카드 스타일 (실제 이미지 사용) */
+.story-keyword-card {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+  background: transparent;
+}
+
+/* 카드 이미지 표시 */
+.story-keyword-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* 카드 내부 텍스트 */
+.story-keyword-text {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 85%;
-  height: 70%;
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #1a1a1a;
+  text-align: center;
+  word-break: keep-all;
+  padding: 8px;
+  width: 90%;
+  max-height: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* 사용된 키워드 스타일 */
+.story-keyword-card.used .story-keyword-text {
+  text-decoration: line-through;
+}
+
+/* 포스트잇 약간씩 기울이기 효과 */
+.story-keyword-card:nth-child(1) { transform: rotate(-2deg); }
+.story-keyword-card:nth-child(2) { transform: rotate(1deg); }
+.story-keyword-card:nth-child(3) { transform: rotate(3deg); }
+.story-keyword-card:hover { transform: scale(1.05) rotate(0deg) !important; z-index: 10; }
+
+/* 3. 하단 푸터 (입력란 + 버튼) */
+.notebook-footer {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.input-area-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  align-items: flex-end; /* 텍스트 하단 정렬 느낌 */
+  justify-content: center;
+}
+
+
+/* 입력란 배경 컨테이너 */
+.input-bg-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 입력란 밑줄 이미지 */
+.input-line-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-top: 20px;
+}
+
+/* 실제 입력 Textarea (투명하게 처리) */
+.input-bg-container textarea {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  width: 100%;
+  height: 60px; /* 높이 적절히 조절 */
   background: transparent;
   border: none;
+  font-size: 1.2rem;
+  font-family: inherit; /* 공책 느낌 폰트면 좋음 */
   color: #1e293b;
-  font-size: 1rem;
-  padding: 10px;
+  padding: 0 10px;
+  text-align: center;
   resize: none;
-  box-sizing: border-box;
-  margin: 0;
-}
-
-.story-input-wrapper textarea::placeholder {
-  color: #64748b;
-}
-
-.story-input-wrapper textarea:focus {
   outline: none;
+  line-height: 1.5;
+  z-index: 10;
 }
 
-/* 스토리 제출 버튼 */
-.story-input-row .image-btn {
-  width: auto;
-  flex-shrink: 0;
+.input-bg-container textarea::placeholder {
+  color: #94a3b8;
+  font-style: italic;
 }
 
-.story-input-row .image-btn img {
-  height: 80px;
-  width: auto;
+/* 제출 버튼 (종이 비행기) */
+.plane-submit-btn {
+  position: relative;
+  left: -20px;
+  top: 5px;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  cursor: pointer;
+  width: 50px;
+  height: 50px;
+  margin-left: -10px;
+  margin-bottom: 5px;
+  transition: transform 0.2s;
+}
+
+.plane-submit-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.2));
+}
+
+.plane-submit-btn:hover {
+  transform: translateX(3px) translateY(-3px) scale(1.1);
+}
+
+.plane-submit-btn:disabled {
+  opacity: 0.5;
+  filter: grayscale(100%);
+  cursor: not-allowed;
+}
+
+#story-wait-msg {
+  font-size: 0.9rem;
+  color: #f59e0b;
+  margin-top: 10px;
+  font-weight: bold;
 }
 
 /* --------------------
@@ -2142,18 +2315,6 @@ button:disabled {
   background-color: transparent;
 }
 
-/* 스토리 작성 화면 공책 배경 (턴제 스토리 작성) */
-#screen-story .story-main .card.wide {
-  background-image: url('./image/04_스토리 적기/공책.png');
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-color: transparent;
-  width: 650px;
-  height: 500px;
-  box-sizing: border-box;
-}
-
 /* 결과 화면 채팅 컨테이너 공책 배경 */
 #screen-results .chat-container {
   background-image: url('./image/05_엔딩/공책.png');
@@ -2193,33 +2354,6 @@ button:disabled {
 #screen-lobby .player-card {
   background: rgba(255, 255, 255, 0.7);
   color: #1e293b;
-}
-
-/* 스토리 작성 화면 텍스트 가독성 */
-#screen-story .story-main .card.wide h2,
-#screen-story .story-main .card.wide .subtitle {
-  color: #334155;
-  text-shadow: none;
-}
-
-/* 지금까지의 이야기 - 배경 없이 텍스트만, 가운데 정렬 */
-#story-so-far {
-  background: transparent;
-  color: #1e293b;
-  text-align: center;
-  padding: 10px;
-  line-height: 1.6;
-  font-size: 1rem;
-}
-
-#screen-story .story-main .card.wide textarea {
-  background: rgba(255, 255, 255, 0.9);
-  color: #1e293b;
-  border-color: #94a3b8;
-}
-
-#screen-story .story-main .card.wide textarea::placeholder {
-  color: #64748b;
 }
 
 /* 결과 화면 텍스트 가독성 */
