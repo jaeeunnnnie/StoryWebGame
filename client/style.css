@@ -578,6 +578,8 @@ button:disabled {
   background: transparent !important;
   border: none !important;
   padding: 0 !important;
+
+  position: relative;
 }
 
 #btn-join-room img {
@@ -589,6 +591,48 @@ button:disabled {
 #btn-join-room:hover {
   transform: rotate(2deg) scale(1.05);
 }
+
+/* 포스트잇 안 join-inline을 레이아웃이 아니라 "오버레이"로 */
+#btn-join-room .join-inline {
+  position: absolute;
+  inset: 0;                 /* 포스트잇 이미지 영역을 그대로 덮음 */
+  z-index: 5;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+
+  background: transparent;  /* 포스트잇 그대로 보이게 */
+}
+
+/* 입력 */
+#btn-join-room #input-room-code-inline {
+  width: 150px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.4);
+  padding: 0 10px;
+  text-align: center;
+  background: rgba(255,255,255,0.85);
+  outline: none;
+}
+
+/* 입장하기 이미지 버튼 */
+#btn-join-room #btn-join-inline {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+#btn-join-room #btn-join-inline img {
+  width: 90px;  /* 필요하면 조절 */
+  height: auto;
+  filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.25));
+}
+
 
 /* --- [장식 요소] 볼펜, 클립, 형광펜 위치 잡기 --- */
 /* (entry-container 기준 absolute) */
@@ -2421,32 +2465,42 @@ button:disabled {
   background-color: transparent;
 }
 
-/* 방 코드 입력 화면 공책 배경 (다른 플레이어의 방에 입장할 때) */
+/* 방 코드 입력을 "화면"이 아니라 "모달"로 띄우기 */
+#screen-waiting {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.35);
+}
+
+/* 모달 닫기 버튼 */
+#screen-waiting .waiting-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+
+  font-size: 22px;
+  line-height: 36px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #111;
+}
+
+/* card가 absolute 배치될 수 있게 */
 #screen-waiting .card {
-  background-image: url('./image/01_메인화면/공책.png');
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-color: transparent;
-  width: 400px;
-  height: 300px;
-  box-sizing: border-box;
+  position: relative;
 }
 
-#screen-waiting .card h2 {
-  color: #334155;
-}
-
-#screen-waiting .card input {
-  background: rgba(255, 255, 255, 0.8);
-  color: #1e293b;
-  border-color: #94a3b8;
-}
-
-#screen-waiting .card button {
-  background: var(--accent-blue);
-  color: white;
-}
 
 /* 로비 화면 공책 배경 (게임 시작 대기 화면) */
 #screen-lobby .lobby-container {

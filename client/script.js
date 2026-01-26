@@ -1928,13 +1928,69 @@ btnCreateRoom?.addEventListener("click", () => {
   });
 });
 
-// 방 들어가기: 닉네임 확인 후 방 코드 입력 화면으로 이동만
+// 포스트잇 위 join-inline 열기
+const joinInline = document.getElementById("join-inline");
+const roomCodeInputInline = document.getElementById("input-room-code-inline");
+const btnJoinInline = document.getElementById("btn-join-inline");
+
 btnJoinRoom?.addEventListener("click", () => {
   if (!ensureName()) return;
 
-  showScreen(screenWaiting);
-  setTimeout(() => roomCodeInput?.focus(), 0);
+  joinInline?.classList.remove("hidden");
+  setTimeout(() => roomCodeInputInline?.focus(), 0);
 });
+
+function joinRoomWith(roomId) {
+  if (!ensureName()) return;
+
+  const rid = String(roomId || "").trim();
+  if (!rid) return alertError("그 방은 없는 방이에요…");
+
+  socket.emit("room:join", { roomId: rid, name: myName, avatar: myAvatar }, (res) => {
+    if (!res?.ok) return alertError(`방 입장 실패: ${res?.error || "UNKNOWN"}`);
+    // 인라인 닫기
+    joinInline?.classList.add("hidden");
+    if (roomCodeInputInline) roomCodeInputInline.value = "";
+
+    if (res.state) {
+      currentRoomState = res.state;
+      goByPhase(res.state);
+    }
+  });
+
+// 인라인 입장하기 버튼 클릭 → joinRoomWith 실행
+btnJoinInline?.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  joinRoomWith(roomCodeInputInline?.value);
+});
+
+// 엔터로도 입장
+roomCodeInputInline?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    joinRoomWith(roomCodeInputInline?.value);
+  }
+});
+
+}
+
+// join-inline의 Go 버튼
+btnJoinInline?.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  joinRoomWith(roomCodeInputInline?.value);
+});
+
+// join-inline에서 Enter로도 입장
+roomCodeInputInline?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    joinRoomWith(roomCodeInputInline?.value);
+  }
+});
+
+
 
 // Go!: 실제 방 입장
 btnJoin?.addEventListener("click", () => {

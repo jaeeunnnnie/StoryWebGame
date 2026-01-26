@@ -80,6 +80,18 @@
               </button>
               <button id="btn-join-room" class="image-btn">
                 <img src="/image/01_메인화면/게임입장하기버튼.png" alt="방 들어가기">
+                
+                <!-- 포스트잇 위에 뜨는 입력 UI (처음엔 hidden) -->
+                <div id="join-inline" class="join-inline hidden">
+                  <div class="join-inline-title">방 코드 입력</div>
+                  <input id="input-room-code-inline" placeholder="예: 12345" autocomplete="off" />
+                  <div class="join-inline-actions">
+                    <button id="btn-join-inline" type="button" class="image-btn">
+                    <img src="/image/01_메인화면/입장하기.png" alt="입장하기">
+                    </button>
+                  </div>
+                </div>
+        
               </button>
             </div>
           </div>
@@ -90,11 +102,14 @@
     <!-- 2. 방 코드 입력 (JS: screen-waiting) -->
     <section id="screen-waiting" class="screen hidden">
       <div class="card">
+        <button id="btn-close-waiting" type="button" class="waiting-close" aria-label="닫기">×</button>
+
         <h2>방 코드 입력</h2>
         <input id="input-room-code" placeholder="예: 12345" autocomplete="off" />
         <button id="btn-join">Go!</button>
       </div>
     </section>
+
 
     <!-- 카운트다운 화면 -->
     <section id="screen-countdown" class="screen hidden">
