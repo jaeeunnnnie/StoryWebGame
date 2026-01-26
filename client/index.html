@@ -284,50 +284,61 @@
       <div id="emoji-display" class="emoji-display"></div>
     </section>
 
-    <!-- 6. 결과 (채팅방 스타일) -->
-    <section id="screen-results" class="screen hidden">
-      <div class="results-wrapper">
-        <div class="results-container">
-          <!-- 스토리 제목 -->
-          <div id="story-title" class="story-title"></div>
-
-          <!-- 진행 표시 -->
-          <div id="story-progress" class="story-progress">
-            <span id="progress-text"></span>
-          </div>
-
-          <!-- 채팅방 스타일 문장 표시 영역 -->
-          <div id="chat-container" class="chat-container"></div>
-
-          <!-- 결과 화면 이모티콘 반응 버튼 -->
-          <div class="result-emoji-section">
-            <button id="btn-result-thumbsup" class="result-emoji-btn">👍</button>
-            <button id="btn-result-clap" class="result-emoji-btn">👏</button>
-          </div>
+<section id="screen-results" class="screen hidden">
+  <div class="results-frame">
+    <!-- 왼쪽 패널 (첫번째 이미지의 이모티콘/리액션 영역) -->
+    <aside class="results-left-panel">
+      <div class="results-left-inner">
+        <!-- 기존 결과 리액션 버튼을 왼쪽으로 이동 -->
+        <div class="result-emoji-section result-emoji-section--left">
+          <button id="btn-result-thumbsup" class="result-emoji-btn">👍</button>
+          <button id="btn-result-clap" class="result-emoji-btn">👏</button>
         </div>
 
-        <!-- 오른쪽 컨트롤 버튼 (위에서부터: 저장하기, 이전 이야기로, 다음 이야기로, 다시하기) -->
-        <div class="results-side-controls">
-          <button id="btn-screenshot" class="result-side-btn">
-            <img src="/image/05_엔딩/저장하기.png" alt="저장하기">
-          </button>
-          <button id="btn-prev" class="result-side-btn">
-            <img src="/image/05_엔딩/이전 이야기로.png" alt="이전 이야기로">
-          </button>
-          <button id="btn-next-story" class="result-side-btn">
-            <img src="/image/05_엔딩/다음 이야기로.png" alt="다음 이야기로">
-          </button>
+        <!-- 필요하면: 여기 추가 버튼/리스트(이모티콘 여러개)도 넣을 자리 -->
+        <!-- <div class="result-emoji-list">...</div> -->
+      </div>
+    </aside>
+
+    <!-- 가운데: 공책(채팅) -->
+    <main class="results-center">
+      <div class="results-container">
+        <div id="story-title" class="story-title"></div>
+
+        <div id="story-progress" class="story-progress">
+          <span id="progress-text"></span>
+        </div>
+
+        <div id="chat-container" class="chat-container"></div>
+      </div>
+
+      <!-- 오른쪽: 포스트잇 버튼들 -->
+      <aside class="results-right-panel">
+        <div class="results-side-controls results-side-controls--stack">
           <button id="btn-restart" class="result-side-btn" disabled>
             <img src="/image/05_엔딩/다시하기.png" alt="다시하기">
           </button>
+
+          <button id="btn-screenshot" class="result-side-btn">
+            <img src="/image/05_엔딩/저장하기.png" alt="저장하기">
+          </button>
+
+          <button id="btn-prev" class="result-side-btn">
+            <img src="/image/05_엔딩/이전 이야기로.png" alt="이전 이야기로">
+          </button>
+
+          <button id="btn-next-story" class="result-side-btn">
+            <img src="/image/05_엔딩/다음 이야기로.png" alt="다음 이야기로">
+          </button>
         </div>
-      </div>
+      </aside>
+    </div>
+  </main>
+  
+  <!-- 결과 화면 이모티콘 애니메이션 컨테이너 (화면 전체에 표시) -->
+  <div id="result-emoji-container" class="result-emoji-container"></div>
+</section>
 
-      <!-- 결과 화면 이모티콘 애니메이션 컨테이너 (화면 전체에 표시) -->
-      <div id="result-emoji-container" class="result-emoji-container"></div>
-    </section>
-
-  </div>
 
   <!-- BGM -->
   <audio id="bgm" loop>

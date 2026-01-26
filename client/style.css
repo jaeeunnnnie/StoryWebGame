@@ -1051,23 +1051,141 @@ button:disabled {
    - 채팅방 스타일로 스토리 표시
 -------------------- */
 
-/* 결과 화면 전체 래퍼 */
-.results-wrapper {
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
+/* 화면 기준 공책 중앙정렬 */
+#screen-results {
   width: 100%;
-  max-width: 900px;
+  align-items: center;
 }
 
-.results-container {
+/*좌 / 중 / 우 패널을 배치하는 프레임*/
+#screen-results .results-frame {
+  position: relative;
+  width: 100%;
+  height: auto;
+
+  display: block;
+}
+
+/* 왼쪽 고정 폭 패널 (이모티콘 영역 조정) */
+#screen-results .results-left-panel {
+  width: 170px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 왼쪽 패널 내부 - 세로 정렬 */
+#screen-results .results-left-inner {
+  width: 100%;
+  display: flex;
+  flex-direction: column; /* 위 → 아래로 쌓기 */
+  gap: 12px;
+  align-items: center;
+}
+
+/* 가운데 메인 영역 (공책/ 채팅) */
+#screen-results .results-center {
+  flex: 1; /* 위에 좌/우 뺴고 남은 공간 전부 차지*/
+  height: 100%;
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 포스트잇 버튼을 공책 위에 붙이기 */
+#screen-results .results-right-panel {
+  position: absolute;
+  right: -80px; 
+  bottom: 140px;
+}
+
+/* 오른쪽 사이드 컨트롤 버튼 세로 정렬  */
+#screen-results .results-side-controls--stack {
   display: flex;
   flex-direction: column;
+  gap: 14px;
   align-items: center;
-  gap: 15px;
-  flex: 1;
-  padding: 20px;
 }
+
+/* 가운데 공책 영역  */
+#screen-results .results-container {
+  position: relative;
+  margin: 0 auto;    
+  transform: none; 
+}
+
+/* 채팅(공책) 크기 */
+#screen-results .chat-container {
+  position: absolute;
+  left: 80px;     /* 스프링 피해서 */
+  right: 80px;
+  bottom: 70px;   /* 아래 여백 */
+  top: 140px;     /* ← 제목 공간 확보 */
+
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+
+/* 오른쪽 포스트잇 이미지 크기 통일 */
+#screen-results .result-side-btn img {
+  width: 140px;
+  height: auto;
+  display: block;
+}
+
+/* 결과 리액션 버튼을 왼쪽 패널용으로 */
+#screen-results .result-emoji-section--left {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#screen-results .story-title {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+
+  z-index: 20;
+
+  background: none;       /* 박스 제거 */
+  box-shadow: none;
+  padding: 0;
+
+  font-size: 1.8rem;
+  color: #1e293b;         /* 종이 위 글씨 느낌 */
+}
+
+
+/* 작은 화면 대응 */
+@media (max-width: 900px) {
+  #screen-results .results-frame {
+    flex-direction: column;
+    height: auto;
+  }
+
+  #screen-results .results-left-panel,
+  #screen-results .results-right-panel {
+    width: 100%;
+    height: auto;
+  }
+
+  #screen-results .results-side-controls--stack {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  #screen-results .results-container {
+    width: 92vw;
+  }
+}
+
 
 /* 오른쪽 사이드 컨트롤 버튼 (다시하기, 저장, 이전/다음) */
 .results-side-controls {
@@ -2155,13 +2273,17 @@ button:disabled {
 }
 
 /* 결과 화면 채팅 컨테이너 공책 배경 */
-#screen-results .chat-container {
+#screen-results .results-container {
+  position: relative;
+  width: 900px;
+  height: 600px;
+
   background-image: url('./image/05_엔딩/공책.png');
   background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
-  background-color: transparent;
 }
+
 
 /* --------------------
    공책 배경 위 텍스트 가독성 개선
