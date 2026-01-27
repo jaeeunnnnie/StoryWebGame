@@ -656,7 +656,7 @@ function startRound(roomId) {
 
   // ------------------------------------------------------------
   // 라운드 타이머
-  const TIMER_DURATION = 45; // 45초로 변경 (테스트용, 나중에 60초로 변경 예정)
+  const TIMER_DURATION = 60;
   let secondsLeft = TIMER_DURATION;
 
   // 기존 타이머 정리
