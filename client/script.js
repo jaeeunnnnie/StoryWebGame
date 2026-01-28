@@ -43,6 +43,12 @@ const playerList = $("player-list");
 const btnLeave = $("btn-leave");
 const btnStart = $("btn-start");
 
+// 대기실 인원수
+const playerCountEl = $("player-count");
+const playerMaxEl = $("player-max");
+
+const MAX_PLAYERS = 12;
+
 // prompts
 const btnSubmitPrompts = $("btn-submit-prompts");
 const waitMsg = $("wait-msg");
@@ -64,10 +70,13 @@ const storyTitle = $("story-title");
 const chatContainer = $("chat-container");
 const storyProgress = $("story-progress");
 const progressText = $("progress-text");
+
+// results buttons
 const btnPrev = $("btn-prev");
 const btnNextStory = $("btn-next-story");
 const btnRestart = $("btn-restart");
 const btnScreenshot = $("btn-screenshot");
+const btnExit = $("btn-exit");
 
 // player status (작성 상태)
 const playerStatusList = $("player-status-list");
@@ -1557,9 +1566,25 @@ function syncResultsDisplay(chainIndex) {
 function goByPhase(state) {
   if (!state) return;
 
-  if (displayRoomCode) displayRoomCode.textContent = `#${state.roomId}`;
-  renderPlayers(state.players || [], state.hostId);
+  const players = state.players || [];
 
+  // 최대 인원 표시
+  if (playerMaxEl) {
+    playerMaxEl.textContent = String(MAX_PLAYERS);
+  }
+
+  // 현재 인원 표시
+  if (playerCountEl) {
+    playerCountEl.textContent = String(players.length);
+  }
+
+  if (displayRoomCode) {
+    displayRoomCode.textContent = `#${state.roomId}`;
+  }
+
+  renderPlayers(players, state.hostId);
+
+  // ───────── phase 분기 ─────────
   if (state.phase === "countdown") {
   showScreen(screenCountdown);
   return;
@@ -1567,20 +1592,20 @@ function goByPhase(state) {
 
   if (btnStart) btnStart.disabled = socket.id !== state.hostId;
 
-if (state.phase === "lobby") {
-  showScreen(screenLobby);
+  if (state.phase === "lobby") {
+    showScreen(screenLobby);
 
-  const isHost = socket.id === state.hostId;
+    const isHost = socket.id === state.hostId;
 
-  // 방장/게스트 UI 토글
-  if (hostControls) hostControls.classList.toggle("hidden", !isHost);
-  if (waitMsgLobby) waitMsgLobby.classList.toggle("hidden", isHost);
+    // 방장/게스트 UI 토글
+    if (hostControls) hostControls.classList.toggle("hidden", !isHost);
+    if (waitMsgLobby) waitMsgLobby.classList.toggle("hidden", isHost);
 
-  // 방장만 시작 가능
-  if (btnStart) btnStart.disabled = !isHost;
+    // 방장만 시작 가능
+    if (btnStart) btnStart.disabled = !isHost;
 
-  return;
-}
+    return;
+  }
 
 
   if (state.phase === "prompt") {
@@ -1963,20 +1988,27 @@ function joinRoomWith(roomId) {
     }
   });
 
-// 인라인 입장하기 버튼 클릭 → joinRoomWith 실행
-btnJoinInline?.addEventListener("click", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  joinRoomWith(roomCodeInputInline?.value);
-});
-
-// 엔터로도 입장
-roomCodeInputInline?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
+  // 인라인 입장하기 버튼 클릭 → joinRoomWith 실행
+  btnJoinInline?.addEventListener("click", (e) => {
     e.preventDefault();
+    e.stopPropagation();
     joinRoomWith(roomCodeInputInline?.value);
+  });
+
+  // 엔터로도 입장
+  roomCodeInputInline?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      joinRoomWith(roomCodeInputInline?.value);
+    }
+  });
+
+    if (room.players.length >= 12) {
+    return cb({
+      ok: false,
+      error: "방 인원이 가득 찼어요",
+    });
   }
-});
 
 }
 
@@ -2137,6 +2169,26 @@ btnRestart?.addEventListener("click", () => {
 
   socket.emit("game:restart", {}, (res) => {
     if (!res?.ok) return alertError(`다시하기 실패: ${res?.error || "UNKNOWN"}`);
+  });
+});
+
+// 게임 나가기 (첫 화면으로 이동)
+btnExit?.addEventListener("click", () => {
+  cancelTTS();
+
+  socket.emit("room:leave", {}, (res) => {
+    if (!res?.ok) return alertError(`나가기 실패: ${res?.error || "UNKNOWN"}`);
+
+    if (displayRoomCode) displayRoomCode.textContent = "#----";
+    if (playerList) playerList.innerHTML = "";
+    if (roomCodeInput) roomCodeInput.value = "";    
+
+    // 화면/상태 초기화
+    currentRoomState = null;
+    currentRoomId = null;
+
+    showScreen(screenName);
+    document.body.classList.add("bg-main");
   });
 });
 

@@ -246,7 +246,7 @@ const DEFAULT_PROMPTS = [
 
 // 모든 플레이어가 제시어 제출했는지 확인
 function allPromptsSubmitted(room) {
-  const ids = Object.keys(room.players);
+  const ids = Object.keys(room.players).filter((sid) => !room.players[sid].disconnected);
   if (ids.length === 0) return false;
   return ids.every((sid) => room.players[sid].submitted?.prompts);
 }
@@ -948,26 +948,35 @@ io.on("connection", (socket) => {
     const room = rooms[rid];
     const wasInGame = room.phase !== "lobby";
 
-    delete room.players[socket.id];
+    const player = room.players[socket.id];
+
+    // 게임 중이 아니면 바로 삭제, 게임 중이면 disconnected 처리(방 유지)
+    if (!wasInGame) {
+      delete room.players[socket.id];
+    } else {
+      if (player) player.disconnected = true;
+    }
+
     socket.leave(rid);
     socket.data.roomId = null;
 
-    if (Object.keys(room.players).length === 0) {
+    // 실제 활성 플레이어 수(연결된 사람만)
+    const activePlayers = Object.values(room.players).filter((p) => !p.disconnected);
+    const remainingCount = activePlayers.length;
+
+    // 방장 위임
+    if (room.hostId === socket.id) {
+      room.hostId = remainingCount > 0 ? activePlayers[0].id : null;
+    }
+
+    // 아무도 없으면 방 삭제 (게임 중이라도 0명이면 삭제)
+    if (Object.keys(room.players).length === 0 || (wasInGame && remainingCount === 0)) {
       delete rooms[rid];
       return ack?.({ ok: true });
     }
 
-    if (room.hostId === socket.id) {
-      const nextHostId = Object.keys(room.players)[0];
-      room.hostId = nextHostId ?? null;
-    }
-
-    if (wasInGame) {
-      abortGame(rid, "PLAYER_LEFT");
-    } else {
-      emitRoomState(rid);
-    }
-
+    // 방/게임 유지
+    emitRoomState(rid);
     ack?.({ ok: true });
   });
 
@@ -1138,7 +1147,8 @@ io.on("connection", (socket) => {
       ack?.({ ok: true });
 
       // 모든 플레이어가 제출했는지 확인 (유령 플레이어 방지: 현재 players 기준)
-      const need = Object.keys(room.players).length;
+      const need = Object.values(room.players).filter((p) => !p.disconnected).length;
+
       if (room.game.submittedStory[round].size < need) return;
 
       // 타이머 정리(전원 제출로 라운드 종료)

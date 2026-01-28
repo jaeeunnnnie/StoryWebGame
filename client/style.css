@@ -702,8 +702,6 @@ button:disabled {
   flex-direction: column;
   align-items: center;
   padding-top: 10px;
-
-  padding-top: 40px;
 }
 
 .lobby-left h2 {
@@ -1395,6 +1393,12 @@ button:disabled {
   padding: 5px !important;
 }
 
+/* 결과 화면 버튼 크기 */
+#btn-exit img {
+  width: 160px;
+}
+
+
 /* 제시어 하이라이트 (스토리 내 제시어 강조) */
 .prompt-highlight {
   color: var(--accent-yellow);
@@ -1551,8 +1555,10 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
+  -webkit-box-orient: vertical;  
+
   -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  line-clamp: 2;  
 }
 
 /* 사용된 키워드 스타일 */
@@ -1749,6 +1755,8 @@ button:disabled {
   text-overflow: ellipsis;
 
   margin-top: 2px;
+
+  color: #f8fafc;
 }
 
 /* 사이드바 플레이어 상태 */
